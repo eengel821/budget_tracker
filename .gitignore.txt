@@ -1,0 +1,22 @@
+
+# Virtual environment
+venv/
+
+# Database
+data/budget.db
+
+# CSV imports — contains real financial data
+csv_imports/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# VS Code settings
+.vscode/
+
+# Windows
+Thumbs.db
+desktop.ini

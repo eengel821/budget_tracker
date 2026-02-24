@@ -1,0 +1,38 @@
+{
+    "chase": {
+        "date_col": "Transaction Date",
+        "description_col": "Description",
+        "category_col": "Category",
+        "amount_col": "Amount",
+        "debit_col": null,
+        "credit_col": null,
+        "date_format": "%m/%d/%Y"
+    },
+    "capitalone": {
+        "date_col": "Transaction Date",
+        "description_col": "Description",
+        "category_col": "Category",
+        "amount_col": null,
+        "debit_col": "Debit",
+        "credit_col": "Credit",
+        "date_format": "%Y-%m-%d"
+    },
+    "becu": {
+        "date_col": "Date",
+        "description_col": "Description",
+        "category_col": null,
+        "amount_col": null,
+        "debit_col": "Debit",
+        "credit_col": "Credit",
+        "date_format": "%m/%d/%Y"
+    },
+    "discover": {
+        "date_col": "Trans. Date",
+        "description_col": "Description",
+        "category_col": "Category",
+        "amount_col": "Amount",
+        "debit_col": null,
+        "credit_col": null,
+        "date_format": "%m/%d/%Y"
+    }
+}
