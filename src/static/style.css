@@ -1,0 +1,141 @@
+/* ── General ── */
+body {
+    background-color: #f5f6fa;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+main {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+/* ── Cards ── */
+.card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+    margin-bottom: 1.5rem;
+}
+
+.card-header {
+    background-color: #fff;
+    border-bottom: 1px solid #eee;
+    border-radius: 12px 12px 0 0 !important;
+    font-weight: 600;
+    padding: 1rem 1.25rem;
+}
+
+/* ── Stat cards on dashboard ── */
+.stat-card {
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    color: #fff;
+    margin-bottom: 1rem;
+}
+
+.stat-card .stat-label {
+    font-size: 0.85rem;
+    opacity: 0.85;
+    margin-bottom: 0.25rem;
+}
+
+.stat-card .stat-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.stat-card .stat-sub {
+    font-size: 0.8rem;
+    opacity: 0.75;
+    margin-top: 0.25rem;
+}
+
+.stat-bg-blue    { background: linear-gradient(135deg, #4e73df, #224abe); }
+.stat-bg-green   { background: linear-gradient(135deg, #1cc88a, #13855c); }
+.stat-bg-red     { background: linear-gradient(135deg, #e74a3b, #be2617); }
+.stat-bg-orange  { background: linear-gradient(135deg, #f6c23e, #dda20a); }
+
+/* ── Tables ── */
+.table thead th {
+    background-color: #f8f9fc;
+    border-bottom: 2px solid #e3e6f0;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6c757d;
+}
+
+.table tbody tr:hover {
+    background-color: #f8f9fc;
+}
+
+.table td {
+    vertical-align: middle;
+    font-size: 0.92rem;
+}
+
+/* ── Amount colors ── */
+.amount-debit  { color: #e74a3b; font-weight: 600; }
+.amount-credit { color: #1cc88a; font-weight: 600; }
+
+/* ── Budget progress bars ── */
+.progress {
+    height: 8px;
+    border-radius: 4px;
+}
+
+.budget-over   { color: #e74a3b; font-weight: 600; }
+.budget-under  { color: #1cc88a; font-weight: 600; }
+.budget-warn   { color: #f6c23e; font-weight: 600; }
+
+/* ── Review queue ── */
+.review-row td {
+    padding: 0.75rem 1rem;
+}
+
+.category-select {
+    min-width: 200px;
+    font-size: 0.9rem;
+}
+
+/* ── Navbar ── */
+.navbar-brand {
+    font-size: 1.1rem;
+    letter-spacing: 0.02em;
+}
+
+.nav-link {
+    font-size: 0.92rem;
+}
+
+/* ── Badges ── */
+.badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* ── Charts ── */
+.chart-container {
+    position: relative;
+    padding: 1rem;
+}
+
+/* ── Month selector ── */
+.month-selector {
+    max-width: 200px;
+}
+
+/* ── Empty state ── */
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #6c757d;
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    display: block;
+}

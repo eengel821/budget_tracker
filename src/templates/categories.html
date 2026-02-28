@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}Categories — Budget Tracker{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0 fw-bold">Category Breakdown</h4>
+        <small class="text-muted">{{ current_month_label }}</small>
+    </div>
+    <form method="get" action="/categories" class="d-flex align-items-center gap-2">
+        <label class="text-muted small me-1">Month:</label>
+        <select name="month" class="form-select form-select-sm month-selector" onchange="this.form.submit()">
+            {% for m in available_months %}
+            <option value="{{ m.value }}" {% if m.value == selected_month %}selected{% endif %}>
+                {{ m.label }}
+            </option>
+            {% endfor %}
+        </select>
+    </form>
+</div>
+
+<div class="row g-3">
+    <!-- Doughnut chart -->
+    <div class="col-12 col-lg-5">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-pie-chart me-2"></i>Spending Distribution</div>
+            <div class="card-body chart-container d-flex align-items-center justify-content-center">
+                {% if category_rows %}
+                <canvas id="categoryChart"></canvas>
+                {% else %}
+                <div class="empty-state">
+                    <i class="bi bi-pie-chart"></i>
+                    No categorized spending this month.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Category table -->
+    <div class="col-12 col-lg-7">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-table me-2"></i>Spending by Category</div>
+            <div class="card-body p-0">
+                {% if category_rows %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th class="text-end">Spent</th>
+                                <th class="text-end">% of Total</th>
+                                <th>Share</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in category_rows %}
+                            <tr>
+                                <td class="fw-semibold">{{ row.category }}</td>
+                                <td class="text-end amount-debit">${{ "%.2f"|format(row.spent|abs) }}</td>
+                                <td class="text-end text-muted">{{ "%.1f"|format(row.pct) }}%</td>
+                                <td style="min-width: 120px;">
+                                    <div class="progress">
+                                        <div class="progress-bar bg-primary"
+                                             style="width: {{ row.pct }}%">
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <td class="fw-bold">Total</td>
+                                <td class="text-end fw-bold amount-debit">
+                                    ${{ "%.2f"|format(total_spent|abs) }}
+                                </td>
+                                <td class="text-end fw-bold">100%</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <i class="bi bi-inbox"></i>
+                    No categorized transactions found for this month.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{% if category_rows %}
+<script>
+    const labels = {{ category_labels | tojson }};
+    const values = {{ category_values | tojson }};
+    const colors = [
+        "#4e73df", "#1cc88a", "#36b9cc", "#f6c23e", "#e74a3b",
+        "#858796", "#5a5c69", "#2e59d9", "#17a673", "#2c9faf",
+        "#dda20a", "#be2617", "#60616f", "#373840", "#1a3a7a",
+    ];
+
+    new Chart(document.getElementById("categoryChart"), {
+        type: "doughnut",
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: colors.slice(0, labels.length),
+                borderWidth: 2,
+                borderColor: "#fff",
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: "bottom",
+                    labels: { font: { size: 11 }, padding: 12 }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ` $${ctx.parsed.toFixed(2)} (${((ctx.parsed / values.reduce((a,b) => a+b, 0)) * 100).toFixed(1)}%)`
+                    }
+                }
+            }
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}

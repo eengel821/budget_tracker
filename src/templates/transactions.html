@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Transactions — Budget Tracker{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0 fw-bold">Transactions</h4>
+        <small class="text-muted">{{ total_count }} transaction{{ 's' if total_count != 1 else '' }} found</small>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-funnel me-2"></i>Filters</div>
+    <div class="card-body">
+        <form method="get" action="/transactions" class="row g-3 align-items-end">
+            <div class="col-12 col-sm-6 col-md-3">
+                <label class="form-label small fw-semibold">Month</label>
+                <select name="month" class="form-select form-select-sm">
+                    <option value="">All months</option>
+                    {% for m in available_months %}
+                    <option value="{{ m.value }}" {% if m.value == selected_month %}selected{% endif %}>
+                        {{ m.label }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <label class="form-label small fw-semibold">Account</label>
+                <select name="account_id" class="form-select form-select-sm">
+                    <option value="">All accounts</option>
+                    {% for a in accounts %}
+                    <option value="{{ a.id }}" {% if a.id|string == selected_account %}selected{% endif %}>
+                        {{ a.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <label class="form-label small fw-semibold">Category</label>
+                <select name="category_id" class="form-select form-select-sm">
+                    <option value="">All categories</option>
+                    <option value="none" {% if selected_category == 'none' %}selected{% endif %}>
+                        Uncategorized
+                    </option>
+                    {% for c in categories %}
+                    <option value="{{ c.id }}" {% if c.id|string == selected_category %}selected{% endif %}>
+                        {{ c.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-sm-6 col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm w-100">
+                    <i class="bi bi-search me-1"></i>Filter
+                </button>
+                <a href="/transactions" class="btn btn-outline-secondary btn-sm w-100">
+                    <i class="bi bi-x me-1"></i>Clear
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Transactions table -->
+<div class="card">
+    <div class="card-body p-0">
+        {% if transactions %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th>Category</th>
+                        <th>Account</th>
+                        <th>Notes</th>
+                        <th class="text-end">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in transactions %}
+                    <tr>
+                        <td class="text-muted small">{{ t.date }}</td>
+                        <td>{{ t.description }}</td>
+                        <td>
+                            {% if t.category %}
+                            <span class="badge bg-light text-dark border">{{ t.category.name }}</span>
+                            {% else %}
+                            <a href="/review" class="badge bg-warning text-dark text-decoration-none">
+                                Uncategorized
+                            </a>
+                            {% endif %}
+                        </td>
+                        <td class="text-muted small">{{ t.account.name if t.account else "—" }}</td>
+                        <td class="text-muted small">{{ t.notes or "—" }}</td>
+                        <td class="text-end {% if t.amount < 0 %}amount-debit{% else %}amount-credit{% endif %}">
+                            ${{ "%.2f"|format(t.amount|abs) }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <td colspan="5" class="fw-semibold text-end">Total Spent:</td>
+                        <td class="text-end amount-debit fw-bold">
+                            ${{ "%.2f"|format(total_spent|abs) }}
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="bi bi-inbox"></i>
+            No transactions match your filters.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

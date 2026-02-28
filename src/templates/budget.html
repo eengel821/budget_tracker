@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}Budget — Budget Tracker{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0 fw-bold">Budget vs Actual</h4>
+        <small class="text-muted">{{ current_month_label }}</small>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <a href="/budget/manage" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-pencil-square me-1"></i>Manage Budgets
+        </a>
+    </div>
+    <form method="get" action="/budget" class="d-flex align-items-center gap-2">
+        <label class="text-muted small me-1">Month:</label>
+        <select name="month" class="form-select form-select-sm month-selector" onchange="this.form.submit()">
+            {% for m in available_months %}
+            <option value="{{ m.value }}" {% if m.value == selected_month %}selected{% endif %}>
+                {{ m.label }}
+            </option>
+            {% endfor %}
+        </select>
+    </form>
+</div>
+
+<!-- Summary stat cards -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-4">
+        <div class="stat-card stat-bg-green">
+            <div class="stat-label"><i class="bi bi-bullseye me-1"></i>Total Budgeted</div>
+            <div class="stat-value">${{ "%.2f"|format(total_budgeted) }}</div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-4">
+        <div class="stat-card stat-bg-blue">
+            <div class="stat-label"><i class="bi bi-credit-card me-1"></i>Total Spent</div>
+            <div class="stat-value">${{ "%.2f"|format(total_spent|abs) }}</div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-4">
+        {% if total_remaining >= 0 %}
+        <div class="stat-card stat-bg-green">
+            <div class="stat-label"><i class="bi bi-piggy-bank me-1"></i>Remaining</div>
+            <div class="stat-value">${{ "%.2f"|format(total_remaining) }}</div>
+            <div class="stat-sub">Under budget ✓</div>
+        </div>
+        {% else %}
+        <div class="stat-card stat-bg-red">
+            <div class="stat-label"><i class="bi bi-exclamation-triangle me-1"></i>Over Budget</div>
+            <div class="stat-value">${{ "%.2f"|format(total_remaining|abs) }}</div>
+            <div class="stat-sub">Over budget</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Budget vs actual chart -->
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-bar-chart me-2"></i>Budget vs Actual by Category</div>
+    <div class="card-body chart-container">
+        <canvas id="budgetChart" style="max-height: 400px;"></canvas>
+    </div>
+</div>
+
+<!-- Budget breakdown table -->
+<div class="card">
+    <div class="card-header"><i class="bi bi-table me-2"></i>Category Breakdown</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th class="text-end">Budgeted</th>
+                        <th class="text-end">Spent</th>
+                        <th class="text-end">Remaining</th>
+                        <th style="min-width: 150px;">Progress</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in budget_rows %}
+                    <tr>
+                        <td class="fw-semibold">{{ row.category }}</td>
+                        <td class="text-end text-muted">${{ "%.2f"|format(row.budgeted) }}</td>
+                        <td class="text-end amount-debit">${{ "%.2f"|format(row.spent|abs) }}</td>
+                        <td class="text-end
+                            {% if row.remaining < 0 %}budget-over
+                            {% elif row.pct_used > 80 %}budget-warn
+                            {% else %}budget-under{% endif %}">
+                            {% if row.remaining < 0 %}
+                            -${{ "%.2f"|format(row.remaining|abs) }}
+                            {% else %}
+                            ${{ "%.2f"|format(row.remaining) }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if row.budgeted > 0 %}
+                            <div class="progress">
+                                <div class="progress-bar
+                                    {% if row.pct_used >= 100 %}bg-danger
+                                    {% elif row.pct_used >= 80 %}bg-warning
+                                    {% else %}bg-success{% endif %}"
+                                    style="width: {{ [row.pct_used, 100]|min }}%"
+                                    title="{{ '%.0f'|format(row.pct_used) }}% used">
+                                </div>
+                            </div>
+                            <small class="text-muted">{{ "%.0f"|format(row.pct_used) }}%</small>
+                            {% else %}
+                            <small class="text-muted">No budget set</small>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const labels  = {{ budget_labels  | tojson }};
+    const budgets = {{ budget_amounts | tojson }};
+    const spent   = {{ spent_amounts  | tojson }};
+
+    new Chart(document.getElementById("budgetChart"), {
+        type: "bar",
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: "Budgeted",
+                    data: budgets,
+                    backgroundColor: "rgba(28, 200, 138, 0.6)",
+                    borderRadius: 4,
+                },
+                {
+                    label: "Spent",
+                    data: spent,
+                    backgroundColor: "rgba(78, 115, 223, 0.8)",
+                    borderRadius: 4,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { position: "top" } },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { callback: val => "$" + val.toLocaleString() }
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

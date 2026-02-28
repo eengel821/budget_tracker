@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Budgets — Budget Tracker{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0 fw-bold">Manage Budgets</h4>
+        <small class="text-muted">Set monthly budget amounts for each category</small>
+    </div>
+    <a href="/budget" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Back to Budget
+    </a>
+</div>
+
+{% if message %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="bi bi-check-circle me-2"></i>{{ message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-pencil-square me-2"></i>Monthly Budget Amounts</span>
+        <small class="text-muted">Changes are saved immediately when you click Save</small>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th style="width: 220px;">Monthly Budget</th>
+                        <th style="width: 100px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for category in categories %}
+                    <tr id="row-{{ category.id }}">
+                        <td class="fw-semibold align-middle">{{ category.name }}</td>
+                        <td>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">$</span>
+                                <input
+                                    type="number"
+                                    class="form-control"
+                                    id="budget-{{ category.id }}"
+                                    value="{{ '%.2f'|format(category.monthly_budget or 0) }}"
+                                    min="0"
+                                    step="0.01"
+                                    placeholder="0.00">
+                            </div>
+                        </td>
+                        <td>
+                            <button
+                                class="btn btn-sm btn-success w-100"
+                                onclick="saveBudget({{ category.id }}, '{{ category.name }}')">
+                                <i class="bi bi-check-lg me-1"></i>Save
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer d-flex justify-content-between align-items-center">
+        <small class="text-muted">
+            Total monthly budget:
+            <strong>${{ "%.2f"|format(total_budgeted) }}</strong>
+        </small>
+        <button class="btn btn-primary btn-sm" onclick="saveAll()">
+            <i class="bi bi-save me-1"></i>Save All
+        </button>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function saveBudget(categoryId, categoryName) {
+        const input = document.getElementById("budget-" + categoryId);
+        const amount = parseFloat(input.value) || 0;
+
+        const response = await fetch(`/api/categories/${categoryId}/budget`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ monthly_budget: amount })
+        });
+
+        if (response.ok) {
+            // Flash the row green briefly to confirm save
+            const row = document.getElementById("row-" + categoryId);
+            row.style.transition = "background-color 0.2s";
+            row.style.backgroundColor = "#d1fae5";
+            setTimeout(() => row.style.backgroundColor = "", 1000);
+            updateTotal();
+        } else {
+            alert(`Failed to save budget for '${categoryName}'. Please try again.`);
+        }
+    }
+
+    async function saveAll() {
+        const inputs = document.querySelectorAll("input[id^='budget-']");
+        let success = 0;
+        let failed = 0;
+
+        for (const input of inputs) {
+            const categoryId = input.id.replace("budget-", "");
+            const amount = parseFloat(input.value) || 0;
+
+            const response = await fetch(`/api/categories/${categoryId}/budget`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ monthly_budget: amount })
+            });
+
+            if (response.ok) {
+                success++;
+            } else {
+                failed++;
+            }
+        }
+
+        if (failed === 0) {
+            // Flash all rows green
+            document.querySelectorAll("tbody tr").forEach(row => {
+                row.style.transition = "background-color 0.2s";
+                row.style.backgroundColor = "#d1fae5";
+                setTimeout(() => row.style.backgroundColor = "", 1000);
+            });
+            updateTotal();
+        } else {
+            alert(`${success} budgets saved, ${failed} failed. Please try again.`);
+        }
+    }
+
+    function updateTotal() {
+        const inputs = document.querySelectorAll("input[id^='budget-']");
+        let total = 0;
+        inputs.forEach(input => total += parseFloat(input.value) || 0);
+        const totalEl = document.querySelector(".card-footer strong");
+        if (totalEl) totalEl.textContent = "$" + total.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
+</script>
+{% endblock %}
