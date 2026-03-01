@@ -161,7 +161,12 @@ def get_monthly_spending(db: Session, year: int, month: int):
 def dashboard(request: Request, db: Session = Depends(get_db), month: Optional[str] = None):
     """Render the dashboard with monthly summary stats and charts."""
     available_months = get_available_months(db)
-    selected_month = month or get_current_month_str()
+    if month:
+        selected_month = month
+    elif available_months:
+        selected_month = available_months[-1]["value"]  # most recent month with data
+    else:
+        selected_month = get_current_month_str()
     year, mo = parse_month(selected_month)
 
     spending = get_monthly_spending(db, year, mo)
@@ -277,7 +282,12 @@ def review_page(request: Request, db: Session = Depends(get_db), message: Option
 def budget_page(request: Request, db: Session = Depends(get_db), month: Optional[str] = None):
     """Render the budget vs actual comparison page."""
     available_months = get_available_months(db)
-    selected_month = month or get_current_month_str()
+    if month:
+        selected_month = month
+    elif available_months:
+        selected_month = available_months[-1]["value"]  # most recent month with data
+    else:
+        selected_month = get_current_month_str()
     year, mo = parse_month(selected_month)
 
     spending = get_monthly_spending(db, year, mo)
@@ -346,7 +356,12 @@ def budget_manage_page(
 def categories_page(request: Request, db: Session = Depends(get_db), month: Optional[str] = None):
     """Render the category breakdown page with doughnut chart."""
     available_months = get_available_months(db)
-    selected_month = month or get_current_month_str()
+    if month:
+        selected_month = month
+    elif available_months:
+        selected_month = available_months[-1]["value"]  # most recent month with data
+    else:
+        selected_month = get_current_month_str()
     year, mo = parse_month(selected_month)
 
     spending = get_monthly_spending(db, year, mo)
