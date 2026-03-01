@@ -77,8 +77,8 @@ main {
 }
 
 /* ── Amount colors ── */
-.amount-debit  { color: #e74a3b; font-weight: 600; }
-.amount-credit { color: #1cc88a; font-weight: 600; }
+.amount-debit  { color: #e74a3b !important; font-weight: 600; }
+.amount-credit { color: #1cc88a !important; font-weight: 600; }
 
 /* ── Budget progress bars ── */
 .progress {
@@ -138,4 +138,15 @@ main {
     font-size: 3rem;
     margin-bottom: 1rem;
     display: block;
+}
+
+/* ── Editable inline fields ── */
+.editable-field {
+    cursor: pointer;
+    border-bottom: 1px dashed transparent;
+    transition: border-color 0.2s;
+}
+
+.editable-field:hover {
+    border-bottom: 1px dashed #adb5bd;
 }

@@ -69,7 +69,7 @@
     <div class="card-body p-0">
         {% if transactions %}
         <div class="table-responsive">
-            <table class="table table-hover mb-0">
+            <table class="table table-hover mb-0" id="transactions-table">
                 <thead>
                     <tr>
                         <th>Date</th>
@@ -78,35 +78,161 @@
                         <th>Account</th>
                         <th>Notes</th>
                         <th class="text-end">Amount</th>
+                        <th style="width:50px;"></th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for t in transactions %}
-                    <tr>
-                        <td class="text-muted small">{{ t.date }}</td>
-                        <td>{{ t.description }}</td>
-                        <td>
-                            {% if t.category %}
-                            <span class="badge bg-light text-dark border">{{ t.category.name }}</span>
-                            {% else %}
-                            <a href="/review" class="badge bg-warning text-dark text-decoration-none">
-                                Uncategorized
-                            </a>
-                            {% endif %}
+                    <tr id="row-{{ t.id }}">
+
+                        <!-- Date -->
+                        <td class="text-muted small align-middle">{{ t.date }}</td>
+
+                        <!-- Description — editable inline -->
+                        <td class="align-middle">
+                            <span
+                                id="desc-text-{{ t.id }}"
+                                class="editable-field"
+                                title="Click to edit description"
+                                onclick="editField('desc', {{ t.id }}, this)">
+                                {{ t.description }}
+                            </span>
+                            <input
+                                id="desc-input-{{ t.id }}"
+                                type="text"
+                                class="form-control form-control-sm d-none"
+                                value="{{ t.description }}"
+                                onblur="saveField('desc', {{ t.id }})"
+                                onkeydown="handleFieldKey(event, 'desc', {{ t.id }})">
                         </td>
-                        <td class="text-muted small">{{ t.account.name if t.account else "—" }}</td>
-                        <td class="text-muted small">{{ t.notes or "—" }}</td>
-                        <td class="text-end {% if t.amount < 0 %}amount-debit{% else %}amount-credit{% endif %}">
+
+                        <!-- Category — inline dropdown -->
+                        <td class="align-middle">
+                            <span
+                                id="cat-badge-{{ t.id }}"
+                                class="badge {% if t.category %}bg-light text-dark border{% else %}bg-warning text-dark{% endif %} category-badge"
+                                style="cursor:pointer;"
+                                title="Click to change category"
+                                onclick="editField('cat', {{ t.id }}, this)">
+                                {{ t.category.name if t.category else 'Uncategorized' }}
+                            </span>
+                            <select
+                                id="cat-input-{{ t.id }}"
+                                class="form-select form-select-sm d-none"
+                                style="min-width:180px;"
+                                onchange="saveCategoryField({{ t.id }}, this)"
+                                onblur="cancelField('cat', {{ t.id }})">
+                                <option value="">— Select category —</option>
+                                {% for c in categories %}
+                                <option value="{{ c.id }}"
+                                    {% if t.category and t.category.id == c.id %}selected{% endif %}>
+                                    {{ c.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </td>
+
+                        <!-- Account -->
+                        <td class="text-muted small align-middle">
+                            {{ t.account.name if t.account else "—" }}
+                        </td>
+
+                        <!-- Notes — editable inline -->
+                        <td class="align-middle">
+                            <span
+                                id="notes-text-{{ t.id }}"
+                                class="editable-field text-muted small"
+                                title="Click to add a note"
+                                onclick="editField('notes', {{ t.id }}, this)">
+                                {{ t.notes or "Add note..." }}
+                            </span>
+                            <input
+                                id="notes-input-{{ t.id }}"
+                                type="text"
+                                class="form-control form-control-sm d-none"
+                                value="{{ t.notes or '' }}"
+                                placeholder="Add a note..."
+                                onblur="saveField('notes', {{ t.id }})"
+                                onkeydown="handleFieldKey(event, 'notes', {{ t.id }})">
+                        </td>
+
+                        <!-- Amount -->
+                        <td class="text-end align-middle {% if t.amount < 0 %}amount-debit{% else %}amount-credit{% endif %}">
                             ${{ "%.2f"|format(t.amount|abs) }}
+                        </td>
+
+                        <!-- Actions menu -->
+                        <td class="align-middle text-center">
+                            <div class="dropdown">
+                                <button
+                                    class="btn btn-sm btn-outline-secondary border-0"
+                                    type="button"
+                                    data-bs-toggle="dropdown"
+                                    aria-expanded="false"
+                                    title="Actions">
+                                    <i class="bi bi-three-dots-vertical"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                    <li>
+                                        <a class="dropdown-item small"
+                                            href="#"
+                                            onclick="editField('cat', {{ t.id }}, document.getElementById('cat-badge-{{ t.id }}')); return false;">
+                                            <i class="bi bi-tag me-2 text-primary"></i>Change Category
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item small"
+                                            href="#"
+                                            onclick="editField('desc', {{ t.id }}, document.getElementById('desc-text-{{ t.id }}')); return false;">
+                                            <i class="bi bi-pencil me-2 text-secondary"></i>Edit Description
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item small"
+                                            href="#"
+                                            onclick="editField('notes', {{ t.id }}, document.getElementById('notes-text-{{ t.id }}')); return false;">
+                                            <i class="bi bi-sticky me-2 text-warning"></i>Add / Edit Note
+                                        </a>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <a class="dropdown-item small text-muted" href="#"
+                                            style="opacity:0.45; pointer-events:none; cursor:default;"
+                                            title="Coming soon">
+                                            <i class="bi bi-scissors me-2"></i>Split Transaction
+                                        </a>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <a class="dropdown-item small text-danger"
+                                            href="#"
+                                            onclick="deleteTransaction({{ t.id }}, '{{ t.description|replace("'", "\\'") }}'); return false;">
+                                            <i class="bi bi-trash me-2"></i>Delete
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
                 <tfoot class="table-light">
                     <tr>
-                        <td colspan="5" class="fw-semibold text-end">Total Spent:</td>
-                        <td class="text-end amount-debit fw-bold">
-                            ${{ "%.2f"|format(total_spent|abs) }}
+                        <td colspan="6" class="fw-semibold text-end text-muted small">Total Expenses:</td>
+                        <td colspan="2" class="text-end amount-debit small">
+                            -${{ "%.2f"|format(total_spent|abs) }}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="6" class="fw-semibold text-end text-muted small">Total Income:</td>
+                        <td colspan="2" class="text-end amount-credit small">
+                            +${{ "%.2f"|format(total_income) }}
+                        </td>
+                    </tr>
+                    <tr class="border-top">
+                        <td colspan="6" class="fw-semibold text-end">Net Total:</td>
+                        <td colspan="2" class="text-end fw-bold {% if net_total >= 0 %}amount-credit{% else %}amount-debit{% endif %}">
+                            {% if net_total >= 0 %}+{% else %}-{% endif %}${{ "%.2f"|format(net_total|abs) }}
                         </td>
                     </tr>
                 </tfoot>
@@ -121,4 +247,109 @@
     </div>
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // ── Field editing ────────────────────────────────────────────────────────
+
+    function editField(field, transactionId, displayEl) {
+        const input = document.getElementById(`${field}-input-${transactionId}`);
+        displayEl.classList.add('d-none');
+        input.classList.remove('d-none');
+        input.focus();
+        if (input.select) input.select();
+    }
+
+    function cancelField(field, transactionId) {
+        const input = document.getElementById(`${field}-input-${transactionId}`);
+        const display = document.getElementById(`${field === 'cat' ? 'cat-badge' : field + '-text'}-${transactionId}`);
+        input.classList.add('d-none');
+        display.classList.remove('d-none');
+    }
+
+    function handleFieldKey(event, field, transactionId) {
+        if (event.key === 'Enter') {
+            saveField(field, transactionId);
+        } else if (event.key === 'Escape') {
+            cancelField(field, transactionId);
+        }
+    }
+
+    async function saveField(field, transactionId) {
+        const input = document.getElementById(`${field}-input-${transactionId}`);
+        const displayId = field === 'notes' ? `notes-text-${transactionId}` : `desc-text-${transactionId}`;
+        const display = document.getElementById(displayId);
+        const value = input.value.trim();
+
+        const response = await fetch(`/api/transactions/${transactionId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ [field]: value })
+        });
+
+        if (response.ok) {
+            display.textContent = value || (field === 'notes' ? 'Add note...' : '');
+            if (field === 'notes' && !value) {
+                display.classList.add('text-muted', 'small');
+            }
+        } else {
+            alert(`Failed to save. Please try again.`);
+        }
+
+        input.classList.add('d-none');
+        display.classList.remove('d-none');
+    }
+
+    // ── Category editing ─────────────────────────────────────────────────────
+
+    async function saveCategoryField(transactionId, selectEl) {
+        const categoryId = selectEl.value;
+        const badge = document.getElementById(`cat-badge-${transactionId}`);
+
+        if (!categoryId) {
+            cancelField('cat', transactionId);
+            return;
+        }
+
+        const response = await fetch(`/transactions/${transactionId}/category`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ category_id: parseInt(categoryId) })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            badge.textContent = data.category_name;
+            badge.className = 'badge bg-light text-dark border category-badge';
+            badge.style.cursor = 'pointer';
+        } else {
+            alert('Failed to update category. Please try again.');
+        }
+
+        selectEl.classList.add('d-none');
+        badge.classList.remove('d-none');
+    }
+
+    // ── Delete transaction ───────────────────────────────────────────────────
+
+    async function deleteTransaction(transactionId, description) {
+        if (!confirm(`Delete transaction "${description}"?\n\nThis cannot be undone.`)) {
+            return;
+        }
+
+        const response = await fetch(`/api/transactions/${transactionId}`, {
+            method: 'DELETE',
+        });
+
+        if (response.ok) {
+            const row = document.getElementById(`row-${transactionId}`);
+            row.style.transition = 'opacity 0.3s';
+            row.style.opacity = '0';
+            setTimeout(() => row.remove(), 300);
+        } else {
+            alert('Failed to delete transaction. Please try again.');
+        }
+    }
+</script>
 {% endblock %}
