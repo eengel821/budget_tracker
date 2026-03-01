@@ -258,6 +258,13 @@ def list_available_files():
 
 
 if __name__ == "__main__":
+    # Back up the database before importing
+    backup_script = Path(__file__).resolve().parent.parent / "backup_db.py"
+    if backup_script.exists():
+        import subprocess
+        print("Creating backup before import...")
+        subprocess.run([sys.executable, str(backup_script)])
+
     formats = load_formats()
 
     if not IMPORT_FOLDER.exists():

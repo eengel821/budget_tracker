@@ -4,6 +4,7 @@ venv/
 
 # Database
 data/budget.db
+backups/
 
 # CSV imports — contains real financial data
 csv_imports/

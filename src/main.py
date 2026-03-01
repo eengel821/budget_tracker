@@ -34,6 +34,7 @@ from categorizer import categorize_all_uncategorized
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    _run_backup()
     yield
 
 app = FastAPI(title="Budget Tracker", lifespan=lifespan)
@@ -59,6 +60,43 @@ class TransactionPatch(BaseModel):
 
 
 # ── Helper functions ─────────────────────────────────────────────────────────
+
+def _run_backup():
+    """
+    Create a database backup on startup.
+    Skips if a backup was already created within the last 60 seconds
+    to prevent multiple backups when uvicorn --reload restarts workers.
+    Errors are caught and logged but do not prevent the app from starting.
+    """
+    try:
+        backup_script = src_path.parent / "backup_db.py"
+        if not backup_script.exists():
+            print("Warning: backup_db.py not found — skipping startup backup")
+            return
+
+        # Check if a backup was created recently
+        backup_dir = src_path.parent / "backups"
+        if backup_dir.exists():
+            existing = sorted(backup_dir.glob("budget_*.db"))
+            if existing:
+                latest = existing[-1]
+                age_seconds = (datetime.now() - datetime.fromtimestamp(latest.stat().st_mtime)).total_seconds()
+                if age_seconds < 60:
+                    return  # skip silently — backup already created recently
+
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, str(backup_script)],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            print(f"✓ Backup created on startup")
+        else:
+            print(f"Warning: Backup failed — {result.stderr.strip()}")
+
+    except Exception as e:
+        print(f"Warning: Backup error — {e}")
 
 def get_available_months(db: Session) -> list[dict]:
     """
@@ -116,7 +154,6 @@ def get_monthly_spending(db: Session, year: int, month: int):
         extract("month", Transaction.date) == month,
         Transaction.amount < 0,
     ).group_by(Category.id).order_by(func.sum(Transaction.amount)).all()
-
 
 # ── Frontend routes ──────────────────────────────────────────────────────────
 
