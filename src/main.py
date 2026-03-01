@@ -529,3 +529,14 @@ def update_category_budget(
         "category_id": category.id,
         "monthly_budget": category.monthly_budget,
     }
+
+# ── Documentation ────────────────────────────────────────────────────────────
+
+from fastapi.staticfiles import StaticFiles as _StaticFiles
+
+# Serve the built MkDocs site at /documentation
+# Run `mkdocs build` from the project root to generate the site/ folder
+_docs_site = src_path.parent / "site"
+if _docs_site.exists():
+    app.mount("/documentation", _StaticFiles(directory=_docs_site, html=True), name="docs-site")
+    

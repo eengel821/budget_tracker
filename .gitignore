@@ -2,6 +2,9 @@
 # Virtual environment
 venv/
 
+#mkdocs site page
+site/
+
 # Database
 data/budget.db
 backups/
