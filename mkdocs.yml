@@ -8,7 +8,7 @@ theme:
     primary: indigo
     accent: indigo
   features:
-    - navigation.tabs
+#    - navigation.tabs
     - navigation.sections
     - navigation.top
     - search.highlight
