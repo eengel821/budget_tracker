@@ -224,6 +224,9 @@ def transactions_page(
     account_id: Optional[str] = None,
     category_id: Optional[str] = None,
     show_excluded: Optional[str] = None,
+    keyword: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,    
 ):
     """Render the transaction list with optional filters."""
     show_excluded_param = show_excluded
@@ -245,6 +248,12 @@ def transactions_page(
         query = query.filter(Transaction.category_id.is_(None))
     elif category_id:
         query = query.filter(Transaction.category_id == int(category_id))
+    if keyword:
+        query = query.filter(Transaction.description.ilike(f"%{keyword}%"))
+    if date_from:
+        query = query.filter(Transaction.date >= date_from)
+    if date_to:
+        query = query.filter(Transaction.date <= date_to)
 
     show_excluded = show_excluded_param == "1"
     if not show_excluded:
@@ -265,6 +274,9 @@ def transactions_page(
         "selected_month": month or "",
         "selected_account": account_id or "",
         "selected_category": category_id or "",
+        "selected_keyword": keyword or "",
+        "selected_date_from": date_from or "",
+        "selected_date_to": date_to or "",       
         "show_excluded": show_excluded,
         "total_count": len(transactions),
         "total_spent": total_spent,

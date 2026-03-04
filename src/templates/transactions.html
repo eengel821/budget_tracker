@@ -7,7 +7,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h4 class="mb-0 fw-bold">Transactions</h4>
-        <small class="text-muted">{{ total_count }} transaction{{ 's' if total_count != 1 else '' }} found</small>
+        <small class="text-muted" id="results-count">{{ total_count }} transaction{{ 's' if total_count != 1 else '' }} found</small>
     </div>
     <div>
         {% if show_excluded %}
@@ -25,55 +25,97 @@
 </div>
 
 <!-- Filters -->
+{% set has_filters = selected_month or selected_account or selected_category or selected_keyword or selected_date_from or selected_date_to %}
 <div class="card mb-4">
-    <div class="card-header"><i class="bi bi-funnel me-2"></i>Filters</div>
-    <div class="card-body">
-        <form method="get" action="/transactions" class="row g-3 align-items-end">
-            <div class="col-12 col-sm-6 col-md-3">
-                <label class="form-label small fw-semibold">Month</label>
-                <select name="month" class="form-select form-select-sm">
-                    <option value="">All months</option>
-                    {% for m in available_months %}
-                    <option value="{{ m.value }}" {% if m.value == selected_month %}selected{% endif %}>
-                        {{ m.label }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-12 col-sm-6 col-md-3">
-                <label class="form-label small fw-semibold">Account</label>
-                <select name="account_id" class="form-select form-select-sm">
-                    <option value="">All accounts</option>
-                    {% for a in accounts %}
-                    <option value="{{ a.id }}" {% if a.id|string == selected_account %}selected{% endif %}>
-                        {{ a.name }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-12 col-sm-6 col-md-3">
-                <label class="form-label small fw-semibold">Category</label>
-                <select name="category_id" class="form-select form-select-sm">
-                    <option value="">All categories</option>
-                    <option value="none" {% if selected_category == 'none' %}selected{% endif %}>
-                        Uncategorized
-                    </option>
-                    {% for c in categories %}
-                    <option value="{{ c.id }}" {% if c.id|string == selected_category %}selected{% endif %}>
-                        {{ c.name }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-12 col-sm-6 col-md-3 d-flex gap-2">
-                <button type="submit" class="btn btn-primary btn-sm w-100">
-                    <i class="bi bi-search me-1"></i>Filter
-                </button>
-                <a href="/transactions" class="btn btn-outline-secondary btn-sm w-100">
-                    <i class="bi bi-x me-1"></i>Clear
-                </a>
-            </div>
-        </form>
+    <div class="card-header d-flex justify-content-between align-items-center"
+        style="cursor:pointer;" onclick="toggleFilters()">
+        <span>
+            <i class="bi bi-funnel me-2"></i>Filters
+            {% if has_filters %}
+            <span class="badge bg-primary ms-2" id="filter-badge">Active</span>
+            {% else %}
+            <span class="badge bg-secondary ms-2 d-none" id="filter-badge">Active</span>
+            {% endif %}
+        </span>
+        <i class="bi bi-chevron-down" id="filter-chevron"
+            style="transition: transform 0.2s; {% if not has_filters %}transform: rotate(-90deg);{% endif %}"></i>
+    </div>
+    <div id="filter-body" {% if not has_filters %}style="display:none;"{% endif %}>
+        <div class="card-body">
+            <form method="get" action="/transactions" id="filter-form" class="row g-3 align-items-end">
+                <!-- Row 1: Month, Account, Category -->
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label class="form-label small fw-semibold">Month</label>
+                    <select name="month" class="form-select form-select-sm">
+                        <option value="">All months</option>
+                        {% for m in available_months %}
+                        <option value="{{ m.value }}" {% if m.value == selected_month %}selected{% endif %}>
+                            {{ m.label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label class="form-label small fw-semibold">Account</label>
+                    <select name="account_id" class="form-select form-select-sm">
+                        <option value="">All accounts</option>
+                        {% for a in accounts %}
+                        <option value="{{ a.id }}" {% if a.id|string == selected_account %}selected{% endif %}>
+                            {{ a.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label class="form-label small fw-semibold">Category</label>
+                    <select name="category_id" class="form-select form-select-sm">
+                        <option value="">All categories</option>
+                        <option value="none" {% if selected_category == 'none' %}selected{% endif %}>
+                            Uncategorized
+                        </option>
+                        {% for c in categories %}
+                        <option value="{{ c.id }}" {% if c.id|string == selected_category %}selected{% endif %}>
+                            {{ c.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <!-- Row 2: Keyword, Date From, Date To -->
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label class="form-label small fw-semibold">Keyword</label>
+                    <input
+                        type="text"
+                        name="keyword"
+                        class="form-control form-control-sm"
+                        placeholder="Search description..."
+                        value="{{ selected_keyword or '' }}">
+                </div>
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label class="form-label small fw-semibold">Date From</label>
+                    <input
+                        type="date"
+                        name="date_from"
+                        class="form-control form-control-sm"
+                        value="{{ selected_date_from or '' }}">
+                </div>
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label class="form-label small fw-semibold">Date To</label>
+                    <input
+                        type="date"
+                        name="date_to"
+                        class="form-control form-control-sm"
+                        value="{{ selected_date_to or '' }}">
+                </div>
+                <div class="col-12 col-sm-6 col-md-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-sm w-100">
+                        <i class="bi bi-search me-1"></i>Filter
+                    </button>
+                    <a href="/transactions" class="btn btn-outline-secondary btn-sm w-100">
+                        <i class="bi bi-x me-1"></i>Clear
+                    </a>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 
@@ -85,23 +127,33 @@
             <table class="table table-hover mb-0" id="transactions-table">
                 <thead>
                     <tr>
-                        <th>Date</th>
-                        <th>Description</th>
-                        <th>Category</th>
-                        <th>Account</th>
+                        <th class="sortable" data-col="0" data-type="date">
+                            Date <i class="bi bi-arrow-down-up sort-icon text-muted small"></i>
+                        </th>
+                        <th class="sortable" data-col="1" data-type="str">
+                            Description <i class="bi bi-arrow-down-up sort-icon text-muted small"></i>
+                        </th>
+                        <th class="sortable" data-col="2" data-type="str">
+                            Category <i class="bi bi-arrow-down-up sort-icon text-muted small"></i>
+                        </th>
+                        <th class="sortable" data-col="3" data-type="str">
+                            Account <i class="bi bi-arrow-down-up sort-icon text-muted small"></i>
+                        </th>
                         <th>Notes</th>
-                        <th class="text-end">Amount</th>
+                        <th class="sortable text-end" data-col="5" data-type="num">
+                            Amount <i class="bi bi-arrow-down-up sort-icon text-muted small"></i>
+                        </th>
                         <th style="width:50px;"></th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="tbody">
                     {% for t in transactions %}
                     <tr id="row-{{ t.id }}" {% if t.excluded %}class="table-secondary" style="opacity:0.5;"{% endif %}>
 
                         <!-- Date -->
-                        <td class="text-muted small align-middle">{{ t.date }}</td>
+                        <td class="text-muted small align-middle" data-val="{{ t.date }}">{{ t.date }}</td>
 
-                        <!-- Description — editable inline -->
+                        <!-- Description -->
                         <td class="align-middle">
                             <span
                                 id="desc-text-{{ t.id }}"
@@ -119,8 +171,8 @@
                                 onkeydown="handleFieldKey(event, 'desc', {{ t.id }})">
                         </td>
 
-                        <!-- Category — inline dropdown -->
-                        <td class="align-middle">
+                        <!-- Category -->
+                        <td class="align-middle" data-val="{{ t.category.name if t.category else '' }}">
                             <span
                                 id="cat-badge-{{ t.id }}"
                                 class="badge {% if t.category %}bg-light text-dark border{% else %}bg-warning text-dark{% endif %} category-badge"
@@ -150,7 +202,7 @@
                             {{ t.account.name if t.account else "—" }}
                         </td>
 
-                        <!-- Notes — editable inline -->
+                        <!-- Notes -->
                         <td class="align-middle">
                             <span
                                 id="notes-text-{{ t.id }}"
@@ -170,7 +222,8 @@
                         </td>
 
                         <!-- Amount -->
-                        <td class="text-end align-middle {% if t.amount < 0 %}amount-debit{% else %}amount-credit{% endif %}">
+                        <td class="text-end align-middle {% if t.amount < 0 %}amount-debit{% else %}amount-credit{% endif %}"
+                            data-val="{{ t.amount }}">
                             ${{ "%.2f"|format(t.amount|abs) }}
                         </td>
 
@@ -223,7 +276,7 @@
                                     {% else %}
                                     <li>
                                         <a class="dropdown-item small text-warning" href="#"
-                                            onclick="excludeTransaction({{ t.id }}, '{{ t.description|replace("'", "\\'") }}'); return false;">
+                                            onclick="excludeTransaction({{ t.id }}, '{{ t.description|replace("'", "\\\'") }}'); return false;">
                                             <i class="bi bi-eye-slash me-2"></i>Exclude from Reports
                                         </a>
                                     </li>
@@ -231,7 +284,7 @@
                                     <li><hr class="dropdown-divider"></li>
                                     <li>
                                         <a class="dropdown-item small text-danger" href="#"
-                                            onclick="deleteTransaction({{ t.id }}, '{{ t.description|replace("'", "\\'") }}'); return false;">
+                                            onclick="deleteTransaction({{ t.id }}, '{{ t.description|replace("'", "\\\'") }}'); return false;">
                                             <i class="bi bi-trash me-2"></i>Delete
                                         </a>
                                     </li>
@@ -275,142 +328,212 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+    .sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+    .sortable:hover { background-color: #f0f4ff; }
+    .sortable.asc .sort-icon::before  { content: "\F282"; }
+    .sortable.desc .sort-icon::before { content: "\F286"; }
+    .sortable.asc  .sort-icon,
+    .sortable.desc .sort-icon { color: #4f46e5 !important; }
+</style>
 <script>
+    // ── Filter panel toggle ──────────────────────────────────────────────────
+
+    function toggleFilters() {
+        const body    = document.getElementById("filter-body");
+        const chevron = document.getElementById("filter-chevron");
+        const open    = body.style.display !== "none";
+        body.style.display = open ? "none" : "";
+        chevron.style.transform = open ? "rotate(-90deg)" : "rotate(0deg)";
+    }
+
+    // ── Column sorting ───────────────────────────────────────────────────────
+
+    let sortCol = null;
+    let sortDir = "asc";
+
+    document.querySelectorAll(".sortable").forEach(th => {
+        th.addEventListener("click", () => {
+            const col  = parseInt(th.dataset.col);
+            const type = th.dataset.type;
+
+            if (sortCol === col) {
+                sortDir = sortDir === "asc" ? "desc" : "asc";
+            } else {
+                sortCol = col;
+                sortDir = "asc";
+            }
+
+            // Update header icons
+            document.querySelectorAll(".sortable").forEach(el => {
+                el.classList.remove("asc", "desc");
+            });
+            th.classList.add(sortDir);
+
+            sortTable(col, type, sortDir);
+        });
+    });
+
+    function sortTable(col, type, dir) {
+        const tbody = document.getElementById("tbody");
+        const rows  = [...tbody.querySelectorAll("tr")];
+
+        rows.sort((a, b) => {
+            const aCell = a.querySelectorAll("td")[col];
+            const bCell = b.querySelectorAll("td")[col];
+
+            let aVal = aCell?.dataset.val ?? aCell?.textContent.trim() ?? "";
+            let bVal = bCell?.dataset.val ?? bCell?.textContent.trim() ?? "";
+
+            if (type === "num") {
+                aVal = parseFloat(aVal) || 0;
+                bVal = parseFloat(bVal) || 0;
+                return dir === "asc" ? aVal - bVal : bVal - aVal;
+            } else {
+                return dir === "asc"
+                    ? aVal.localeCompare(bVal)
+                    : bVal.localeCompare(aVal);
+            }
+        });
+
+        rows.forEach(row => tbody.appendChild(row));
+    }
+
+    // ── Filter badge helper ──────────────────────────────────────────────────
+    // Show/hide the Active badge as filters change without submitting the form
+
+    document.querySelectorAll("#filter-form input, #filter-form select").forEach(el => {
+        el.addEventListener("change", updateFilterBadge);
+        el.addEventListener("input",  updateFilterBadge);
+    });
+
+    function updateFilterBadge() {
+        const inputs   = [...document.querySelectorAll("#filter-form input")];
+        const selects  = [...document.querySelectorAll("#filter-form select")];
+        const hasValue = [...inputs, ...selects].some(el => el.value.trim() !== "");
+        const badge    = document.getElementById("filter-badge");
+        badge.classList.toggle("d-none", !hasValue);
+        badge.classList.toggle("bg-primary", hasValue);
+        badge.classList.toggle("bg-secondary", !hasValue);
+    }
+
     // ── Field editing ────────────────────────────────────────────────────────
 
     function editField(field, transactionId, displayEl) {
         const input = document.getElementById(`${field}-input-${transactionId}`);
-        displayEl.classList.add('d-none');
-        input.classList.remove('d-none');
+        displayEl.classList.add("d-none");
+        input.classList.remove("d-none");
         input.focus();
         if (input.select) input.select();
     }
 
     function cancelField(field, transactionId) {
-        const input = document.getElementById(`${field}-input-${transactionId}`);
-        const display = document.getElementById(`${field === 'cat' ? 'cat-badge' : field + '-text'}-${transactionId}`);
-        input.classList.add('d-none');
-        display.classList.remove('d-none');
+        const input   = document.getElementById(`${field}-input-${transactionId}`);
+        const display = document.getElementById(`${field === "cat" ? "cat-badge" : field + "-text"}-${transactionId}`);
+        input.classList.add("d-none");
+        display.classList.remove("d-none");
     }
 
     function handleFieldKey(event, field, transactionId) {
-        if (event.key === 'Enter') {
-            saveField(field, transactionId);
-        } else if (event.key === 'Escape') {
-            cancelField(field, transactionId);
-        }
+        if (event.key === "Enter")  saveField(field, transactionId);
+        if (event.key === "Escape") cancelField(field, transactionId);
     }
 
     async function saveField(field, transactionId) {
-        const input = document.getElementById(`${field}-input-${transactionId}`);
-        const displayId = field === 'notes' ? `notes-text-${transactionId}` : `desc-text-${transactionId}`;
-        const display = document.getElementById(displayId);
-        const value = input.value.trim();
+        const input     = document.getElementById(`${field}-input-${transactionId}`);
+        const displayId = field === "notes" ? `notes-text-${transactionId}` : `desc-text-${transactionId}`;
+        const display   = document.getElementById(displayId);
+        const value     = input.value.trim();
 
         const response = await fetch(`/api/transactions/${transactionId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ [field]: value })
         });
 
         if (response.ok) {
-            display.textContent = value || (field === 'notes' ? 'Add note...' : '');
-            if (field === 'notes' && !value) {
-                display.classList.add('text-muted', 'small');
-            }
+            display.textContent = value || (field === "notes" ? "Add note..." : "");
+            if (field === "notes" && !value) display.classList.add("text-muted", "small");
         } else {
-            alert('Failed to save. Please try again.');
+            alert("Failed to save. Please try again.");
         }
 
-        input.classList.add('d-none');
-        display.classList.remove('d-none');
+        input.classList.add("d-none");
+        display.classList.remove("d-none");
     }
 
     // ── Category editing ─────────────────────────────────────────────────────
 
     async function saveCategoryField(transactionId, selectEl) {
         const categoryId = selectEl.value;
-        const badge = document.getElementById(`cat-badge-${transactionId}`);
+        const badge      = document.getElementById(`cat-badge-${transactionId}`);
 
-        if (!categoryId) {
-            cancelField('cat', transactionId);
-            return;
-        }
+        if (!categoryId) { cancelField("cat", transactionId); return; }
 
         const response = await fetch(`/transactions/${transactionId}/category`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ category_id: parseInt(categoryId) })
         });
 
         if (response.ok) {
             const data = await response.json();
             badge.textContent = data.category_name;
-            badge.className = 'badge bg-light text-dark border category-badge';
-            badge.style.cursor = 'pointer';
+            badge.className   = "badge bg-light text-dark border category-badge";
+            badge.style.cursor = "pointer";
+            // Update data-val for sorting
+            badge.closest("td").dataset.val = data.category_name;
         } else {
-            alert('Failed to update category. Please try again.');
+            alert("Failed to update category. Please try again.");
         }
 
-        selectEl.classList.add('d-none');
-        badge.classList.remove('d-none');
+        selectEl.classList.add("d-none");
+        badge.classList.remove("d-none");
     }
 
-    // ── Exclude / unexclude transaction ──────────────────────────────────────
+    // ── Exclude / unexclude ──────────────────────────────────────────────────
 
     async function excludeTransaction(transactionId, description) {
-        if (!confirm(`Exclude "${description}" from reports and budget calculations?\n\nIt will be hidden from the transactions page but can be restored using "Show Excluded".`)) {
-            return;
-        }
+        if (!confirm(`Exclude "${description}" from reports and budget calculations?\n\nIt will be hidden from this page but can be restored using "Show Excluded".`)) return;
 
-        const response = await fetch(`/api/transactions/${transactionId}/exclude`, {
-            method: 'PUT',
-        });
+        const response = await fetch(`/api/transactions/${transactionId}/exclude`, { method: "PUT" });
 
         if (response.ok) {
-            const row = document.getElementById(`row-${transactionId}`);
-            row.style.transition = 'opacity 0.3s';
-            row.style.opacity = '0';
-            setTimeout(() => row.remove(), 300);
+            fadeRemove(transactionId);
         } else {
-            alert('Failed to exclude transaction. Please try again.');
+            alert("Failed to exclude transaction. Please try again.");
         }
     }
 
     async function unexcludeTransaction(transactionId) {
-        const response = await fetch(`/api/transactions/${transactionId}/unexclude`, {
-            method: 'PUT',
-        });
+        const response = await fetch(`/api/transactions/${transactionId}/unexclude`, { method: "PUT" });
 
         if (response.ok) {
-            const row = document.getElementById(`row-${transactionId}`);
-            row.style.transition = 'opacity 0.3s';
-            row.style.opacity = '0';
-            setTimeout(() => row.remove(), 300);
+            fadeRemove(transactionId);
         } else {
-            alert('Failed to un-exclude transaction. Please try again.');
+            alert("Failed to un-exclude transaction. Please try again.");
         }
     }
 
-    // ── Delete transaction ───────────────────────────────────────────────────
+    // ── Delete ───────────────────────────────────────────────────────────────
 
     async function deleteTransaction(transactionId, description) {
-        if (!confirm(`Delete transaction "${description}"?\n\nThis cannot be undone.`)) {
-            return;
-        }
+        if (!confirm(`Delete transaction "${description}"?\n\nThis cannot be undone.`)) return;
 
-        const response = await fetch(`/api/transactions/${transactionId}`, {
-            method: 'DELETE',
-        });
+        const response = await fetch(`/api/transactions/${transactionId}`, { method: "DELETE" });
 
         if (response.ok) {
-            const row = document.getElementById(`row-${transactionId}`);
-            row.style.transition = 'opacity 0.3s';
-            row.style.opacity = '0';
-            setTimeout(() => row.remove(), 300);
+            fadeRemove(transactionId);
         } else {
-            alert('Failed to delete transaction. Please try again.');
+            alert("Failed to delete transaction. Please try again.");
         }
+    }
+
+    function fadeRemove(transactionId) {
+        const row = document.getElementById(`row-${transactionId}`);
+        row.style.transition = "opacity 0.3s";
+        row.style.opacity    = "0";
+        setTimeout(() => row.remove(), 300);
     }
 </script>
 {% endblock %}
