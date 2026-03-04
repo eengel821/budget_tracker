@@ -32,6 +32,10 @@
             <table class="table table-hover mb-0">
                 <thead>
                     <tr>
+                        <th style="width:40px;">
+                            <input type="checkbox" id="select-all" class="form-check-input"
+                                onchange="toggleAll(this)">
+                        </th>
                         <th>Date</th>
                         <th>Description</th>
                         <th>Account</th>
@@ -43,6 +47,11 @@
                 <tbody>
                     {% for t in transactions %}
                     <tr class="review-row" id="row-{{ t.id }}">
+                        <td class="align-middle">
+                            <input type="checkbox" class="form-check-input row-check"
+                                data-id="{{ t.id }}"
+                                onclick="handleCheckboxClick(event, this)">
+                        </td>
                         <td class="text-muted small align-middle">{{ t.date }}</td>
                         <td class="fw-semibold align-middle">{{ t.description }}</td>
                         <td class="text-muted small align-middle">{{ t.account.name if t.account else "—" }}</td>
@@ -66,13 +75,13 @@
                             <div class="d-flex gap-1">
                                 <button
                                     class="btn btn-sm btn-success"
-                                    onclick="assignCategory({{ t.id }})"
+                                    onclick="assignSingle({{ t.id }})"
                                     title="Assign category">
                                     <i class="bi bi-check-lg"></i>
                                 </button>
                                 <button
                                     class="btn btn-sm btn-outline-warning"
-                                    onclick="excludeTransaction({{ t.id }})"
+                                    onclick="excludeSingle({{ t.id }})"
                                     title="Exclude from reports">
                                     <i class="bi bi-eye-slash"></i>
                                 </button>
@@ -85,6 +94,27 @@
         </div>
     </div>
 </div>
+
+<!-- Floating bulk action bar -->
+<div id="bulk-bar" class="bulk-bar hidden">
+    <span class="count-badge"><span id="selected-count">0</span> selected</span>
+    <select class="form-select form-select-sm" id="bulk-category" style="min-width:180px;">
+        <option value="">— Select category —</option>
+        {% for c in categories %}
+        <option value="{{ c.id }}">{{ c.name }}</option>
+        {% endfor %}
+    </select>
+    <button class="btn btn-sm btn-primary" onclick="applyBulk()">
+        <i class="bi bi-check-lg me-1"></i>Apply to Selected
+    </button>
+    <button class="btn btn-sm btn-outline-warning" onclick="excludeBulk()">
+        <i class="bi bi-eye-slash me-1"></i>Exclude Selected
+    </button>
+    <button class="btn btn-sm btn-outline-light" onclick="clearSelection()">
+        <i class="bi bi-x me-1"></i>Clear
+    </button>
+</div>
+
 {% else %}
 <div class="card">
     <div class="card-body">
@@ -101,15 +131,138 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+    tr.selected-row { background-color: #eef2ff !important; }
+
+    .bulk-bar {
+        position: fixed;
+        bottom: 2rem;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #1e293b;
+        color: #fff;
+        border-radius: 12px;
+        padding: 0.75rem 1.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+        z-index: 1000;
+        white-space: nowrap;
+        transition: opacity 0.2s, transform 0.2s;
+    }
+
+    .bulk-bar.hidden {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateX(-50%) translateY(1rem);
+    }
+
+    .bulk-bar .count-badge {
+        background: #4f46e5;
+        border-radius: 20px;
+        padding: 0.2rem 0.65rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+</style>
 <script>
-    async function assignCategory(transactionId) {
+    let lastChecked = null;
+
+    // ── Shift-click range selection ──────────────────────────────────────────
+
+    function handleCheckboxClick(e, cb) {
+        if (e.shiftKey && lastChecked && lastChecked !== cb) {
+            const checkboxes = [...document.querySelectorAll(".row-check")];
+            const from = checkboxes.indexOf(lastChecked);
+            const to   = checkboxes.indexOf(cb);
+            const [start, end] = from < to ? [from, to] : [to, from];
+            checkboxes.slice(start, end + 1).forEach(el => el.checked = cb.checked);
+        }
+        lastChecked = cb;
+        updateSelection();
+    }
+
+    function toggleAll(cb) {
+        document.querySelectorAll(".row-check").forEach(el => el.checked = cb.checked);
+        updateSelection();
+    }
+
+    function clearSelection() {
+        document.querySelectorAll(".row-check").forEach(el => el.checked = false);
+        document.getElementById("select-all").checked = false;
+        updateSelection();
+    }
+
+    function getSelectedIds() {
+        return [...document.querySelectorAll(".row-check:checked")]
+            .map(cb => parseInt(cb.dataset.id));
+    }
+
+    function updateSelection() {
+        const ids = getSelectedIds();
+        document.getElementById("selected-count").textContent = ids.length;
+        const bar = document.getElementById("bulk-bar");
+        bar.classList.toggle("hidden", ids.length === 0);
+
+        // Highlight selected rows
+        document.querySelectorAll(".row-check").forEach(cb => {
+            document.getElementById("row-" + cb.dataset.id)
+                .classList.toggle("selected-row", cb.checked);
+        });
+
+        // Update select-all checkbox state
+        const all = document.querySelectorAll(".row-check");
+        document.getElementById("select-all").indeterminate =
+            ids.length > 0 && ids.length < all.length;
+        document.getElementById("select-all").checked =
+            ids.length > 0 && ids.length === all.length;
+    }
+
+    // ── Row removal ──────────────────────────────────────────────────────────
+
+    function removeRows(ids) {
+        ids.forEach(id => {
+            const row = document.getElementById("row-" + id);
+            if (!row) return;
+            row.style.transition = "opacity 0.3s";
+            row.style.opacity = "0";
+            setTimeout(() => {
+                row.remove();
+                updateCount();
+            }, 300);
+        });
+        setTimeout(updateSelection, 350);
+    }
+
+    function updateCount() {
+        const remaining = document.querySelectorAll("tbody tr").length;
+
+        // Update the subtitle on the page
+        const subtitle = document.getElementById("queue-count");
+        if (subtitle) {
+            subtitle.textContent = remaining + " transaction" + (remaining !== 1 ? "s" : "") + " need categorizing";
+        }
+
+        // Update the navbar badge
+        const badge = document.querySelector(".nav-link .badge");
+        if (badge) {
+            if (remaining > 0) {
+                badge.textContent = remaining;
+            } else {
+                badge.remove();
+            }
+        }
+
+        if (remaining === 0) location.reload();
+    }
+
+    // ── Single row actions ───────────────────────────────────────────────────
+
+    async function assignSingle(transactionId) {
         const select = document.getElementById("category-" + transactionId);
         const categoryId = select.value;
-
-        if (!categoryId) {
-            alert("Please select a category first.");
-            return;
-        }
+        if (!categoryId) { alert("Please select a category first."); return; }
 
         const response = await fetch(`/transactions/${transactionId}/category`, {
             method: "PUT",
@@ -118,50 +271,70 @@
         });
 
         if (response.ok) {
-            removeRow(transactionId);
+            removeRows([transactionId]);
         } else {
             alert("Failed to assign category. Please try again.");
         }
     }
 
-    async function excludeTransaction(transactionId) {
+    async function excludeSingle(transactionId) {
         const row = document.getElementById("row-" + transactionId);
-        const description = row.querySelector("td:nth-child(2)").textContent.trim();
-
-        if (!confirm(`Exclude "${description}" from reports?\n\nIt will be removed from this queue and hidden from the transactions page.\nYou can restore it using "Show Excluded" on the transactions page.`)) {
-            return;
-        }
+        const description = row.querySelector("td:nth-child(3)").textContent.trim();
+        if (!confirm(`Exclude "${description}" from reports?\n\nYou can restore it using "Show Excluded" on the transactions page.`)) return;
 
         const response = await fetch(`/api/transactions/${transactionId}/exclude`, {
             method: "PUT",
         });
 
         if (response.ok) {
-            removeRow(transactionId);
+            removeRows([transactionId]);
         } else {
             alert("Failed to exclude transaction. Please try again.");
         }
     }
 
-    function removeRow(transactionId) {
-        const row = document.getElementById("row-" + transactionId);
-        row.style.transition = "opacity 0.3s";
-        row.style.opacity = "0";
-        setTimeout(() => {
-            row.remove();
-            updateCount();
-        }, 300);
+    // ── Bulk actions ─────────────────────────────────────────────────────────
+
+    async function applyBulk() {
+        const ids = getSelectedIds();
+        const select = document.getElementById("bulk-category");
+        const categoryId = select.value;
+        if (!categoryId) { alert("Please select a category first."); return; }
+
+        const results = await Promise.all(
+            ids.map(id =>
+                fetch(`/transactions/${id}/category`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ category_id: parseInt(categoryId) })
+                })
+            )
+        );
+
+        const succeeded = results.filter(r => r.ok).length;
+        const failed = results.length - succeeded;
+
+        if (succeeded > 0) removeRows(ids.slice(0, succeeded));
+        if (failed > 0) alert(`${failed} transaction(s) failed to update. Please try again.`);
+
+        select.value = "";
     }
 
-    function updateCount() {
-        const remaining = document.querySelectorAll("tbody tr").length;
-        const subtitle = document.getElementById("queue-count");
-        if (subtitle) {
-            subtitle.textContent = remaining + " transaction" + (remaining !== 1 ? "s" : "") + " need categorizing";
-        }
-        if (remaining === 0) {
-            location.reload();
-        }
+    async function excludeBulk() {
+        const ids = getSelectedIds();
+        if (!confirm(`Exclude ${ids.length} transaction${ids.length !== 1 ? "s" : ""} from reports?\n\nYou can restore them using "Show Excluded" on the transactions page.`)) return;
+
+        const results = await Promise.all(
+            ids.map(id =>
+                fetch(`/api/transactions/${id}/exclude`, { method: "PUT" })
+            )
+        );
+
+        const succeeded = results.filter(r => r.ok).length;
+        const failed = results.length - succeeded;
+
+        if (succeeded > 0) removeRows(ids.slice(0, succeeded));
+        if (failed > 0) alert(`${failed} transaction(s) failed to exclude. Please try again.`);
     }
 </script>
 {% endblock %}
