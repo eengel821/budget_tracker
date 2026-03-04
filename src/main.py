@@ -135,8 +135,11 @@ def get_month_label(month_str: str) -> str:
 
 
 def get_uncategorized_count(db: Session) -> int:
-    """Return the total number of uncategorized transactions."""
-    return db.query(Transaction).filter(Transaction.category_id.is_(None)).count()
+    """Return the total number of uncategorized non-excluded transactions."""
+    return db.query(Transaction).filter(
+        Transaction.category_id.is_(None),
+        Transaction.excluded == False,
+    ).count()
 
 
 def get_monthly_spending(db: Session, year: int, month: int):
@@ -153,6 +156,7 @@ def get_monthly_spending(db: Session, year: int, month: int):
         extract("year", Transaction.date) == year,
         extract("month", Transaction.date) == month,
         Transaction.amount < 0,
+        Transaction.excluded == False,
     ).group_by(Category.id).order_by(func.sum(Transaction.amount)).all()
 
 # ── Frontend routes ──────────────────────────────────────────────────────────
@@ -188,6 +192,7 @@ def dashboard(request: Request, db: Session = Depends(get_db), month: Optional[s
         .filter(
             extract("year", Transaction.date) == year,
             extract("month", Transaction.date) == mo,
+            Transaction.excluded == False,
         ).order_by(Transaction.date.desc()).limit(10).all()
 
     return templates.TemplateResponse("dashboard.html", {
@@ -215,8 +220,10 @@ def transactions_page(
     month: Optional[str] = None,
     account_id: Optional[str] = None,
     category_id: Optional[str] = None,
+    show_excluded: Optional[str] = None,
 ):
     """Render the transaction list with optional filters."""
+    show_excluded_param = show_excluded
     available_months = get_available_months(db)
     accounts = db.query(Account).order_by(Account.name).all()
     categories = db.query(Category).order_by(Category.name).all()
@@ -236,6 +243,10 @@ def transactions_page(
     elif category_id:
         query = query.filter(Transaction.category_id == int(category_id))
 
+    show_excluded = show_excluded_param == "1"
+    if not show_excluded:
+        query = query.filter(Transaction.excluded == False)
+
     transactions = query.order_by(Transaction.date.desc()).all()
     total_spent = sum(t.amount for t in transactions if t.amount < 0)
     total_income = sum(t.amount for t in transactions if t.amount > 0)
@@ -251,6 +262,7 @@ def transactions_page(
         "selected_month": month or "",
         "selected_account": account_id or "",
         "selected_category": category_id or "",
+        "show_excluded": show_excluded,
         "total_count": len(transactions),
         "total_spent": total_spent,
         "total_income": total_income,
@@ -263,7 +275,10 @@ def transactions_page(
 def review_page(request: Request, db: Session = Depends(get_db), message: Optional[str] = None):
     """Render the uncategorized transaction review queue."""
     transactions = db.query(Transaction)\
-        .filter(Transaction.category_id.is_(None))\
+        .filter(
+            Transaction.category_id.is_(None),
+            Transaction.excluded == False,
+        )\
         .order_by(Transaction.date.desc()).all()
 
     categories = db.query(Category).order_by(Category.name).all()
@@ -550,4 +565,36 @@ from fastapi.staticfiles import StaticFiles as _StaticFiles
 _docs_site = src_path.parent / "site"
 if _docs_site.exists():
     app.mount("/documentation", _StaticFiles(directory=_docs_site, html=True), name="docs-site")
-    
+
+# ── Exclude / unexclude transactions ─────────────────────────────────────────
+
+@app.put("/api/transactions/{transaction_id}/exclude")
+def set_transaction_excluded(
+    transaction_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    Mark a transaction as excluded from reports and budget calculations.
+    Excluded transactions are hidden on the transactions page by default
+    but can still be viewed using the 'show excluded' toggle.
+    """
+    transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    transaction.excluded = True
+    db.commit()
+    return {"message": "Transaction excluded", "transaction_id": transaction_id}
+
+
+@app.put("/api/transactions/{transaction_id}/unexclude")
+def set_transaction_unexcluded(
+    transaction_id: int,
+    db: Session = Depends(get_db),
+):
+    """Re-include a previously excluded transaction in reports."""
+    transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    transaction.excluded = False
+    db.commit()
+    return {"message": "Transaction unexcluded", "transaction_id": transaction_id}

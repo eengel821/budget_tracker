@@ -7,7 +7,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h4 class="mb-0 fw-bold">Review Queue</h4>
-        <small class="text-muted">{{ transactions|length }} transaction{{ 's' if transactions|length != 1 else '' }} need categorizing</small>
+        <small class="text-muted" id="queue-count">{{ transactions|length }} transaction{{ 's' if transactions|length != 1 else '' }} need categorizing</small>
     </div>
     {% if transactions %}
     <form method="post" action="/categorize-all">
@@ -17,6 +17,13 @@
     </form>
     {% endif %}
 </div>
+
+{% if message %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="bi bi-check-circle me-2"></i>{{ message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
 
 {% if transactions %}
 <div class="card">
@@ -30,19 +37,19 @@
                         <th>Account</th>
                         <th class="text-end">Amount</th>
                         <th>Assign Category</th>
-                        <th></th>
+                        <th style="width: 100px;"></th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for t in transactions %}
                     <tr class="review-row" id="row-{{ t.id }}">
-                        <td class="text-muted small">{{ t.date }}</td>
-                        <td class="fw-semibold">{{ t.description }}</td>
-                        <td class="text-muted small">{{ t.account.name if t.account else "—" }}</td>
-                        <td class="text-end {% if t.amount < 0 %}amount-debit{% else %}amount-credit{% endif %}">
+                        <td class="text-muted small align-middle">{{ t.date }}</td>
+                        <td class="fw-semibold align-middle">{{ t.description }}</td>
+                        <td class="text-muted small align-middle">{{ t.account.name if t.account else "—" }}</td>
+                        <td class="text-end align-middle {% if t.amount < 0 %}amount-debit{% else %}amount-credit{% endif %}">
                             ${{ "%.2f"|format(t.amount|abs) }}
                         </td>
-                        <td>
+                        <td class="align-middle">
                             <select
                                 class="form-select form-select-sm category-select"
                                 id="category-{{ t.id }}"
@@ -50,18 +57,26 @@
                                 <option value="">— Select category —</option>
                                 {% for c in categories %}
                                 <option value="{{ c.id }}" {% if t.suggested_category_id == c.id %}selected{% endif %}>
-                                    {{ c.name }}
-                                    {% if t.suggested_category_id == c.id %}★{% endif %}
+                                    {{ c.name }}{% if t.suggested_category_id == c.id %} ★{% endif %}
                                 </option>
                                 {% endfor %}
                             </select>
                         </td>
-                        <td>
-                            <button
-                                class="btn btn-sm btn-success"
-                                onclick="assignCategory({{ t.id }})">
-                                <i class="bi bi-check-lg"></i>
-                            </button>
+                        <td class="align-middle">
+                            <div class="d-flex gap-1">
+                                <button
+                                    class="btn btn-sm btn-success"
+                                    onclick="assignCategory({{ t.id }})"
+                                    title="Assign category">
+                                    <i class="bi bi-check-lg"></i>
+                                </button>
+                                <button
+                                    class="btn btn-sm btn-outline-warning"
+                                    onclick="excludeTransaction({{ t.id }})"
+                                    title="Exclude from reports">
+                                    <i class="bi bi-eye-slash"></i>
+                                </button>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
@@ -103,22 +118,44 @@
         });
 
         if (response.ok) {
-            // Fade out and remove the row
-            const row = document.getElementById("row-" + transactionId);
-            row.style.transition = "opacity 0.3s";
-            row.style.opacity = "0";
-            setTimeout(() => {
-                row.remove();
-                updateCount();
-            }, 300);
+            removeRow(transactionId);
         } else {
             alert("Failed to assign category. Please try again.");
         }
     }
 
+    async function excludeTransaction(transactionId) {
+        const row = document.getElementById("row-" + transactionId);
+        const description = row.querySelector("td:nth-child(2)").textContent.trim();
+
+        if (!confirm(`Exclude "${description}" from reports?\n\nIt will be removed from this queue and hidden from the transactions page.\nYou can restore it using "Show Excluded" on the transactions page.`)) {
+            return;
+        }
+
+        const response = await fetch(`/api/transactions/${transactionId}/exclude`, {
+            method: "PUT",
+        });
+
+        if (response.ok) {
+            removeRow(transactionId);
+        } else {
+            alert("Failed to exclude transaction. Please try again.");
+        }
+    }
+
+    function removeRow(transactionId) {
+        const row = document.getElementById("row-" + transactionId);
+        row.style.transition = "opacity 0.3s";
+        row.style.opacity = "0";
+        setTimeout(() => {
+            row.remove();
+            updateCount();
+        }, 300);
+    }
+
     function updateCount() {
         const remaining = document.querySelectorAll("tbody tr").length;
-        const subtitle = document.querySelector(".text-muted");
+        const subtitle = document.getElementById("queue-count");
         if (subtitle) {
             subtitle.textContent = remaining + " transaction" + (remaining !== 1 ? "s" : "") + " need categorizing";
         }

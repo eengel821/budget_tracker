@@ -2,6 +2,15 @@
 
 A personal budget tracking application built with Python, FastAPI, SQLite, and SQLAlchemy.
 
+## TODO Task List
+- [X] Automatically exclude CC pmt transactions
+- [ ] change color of the exclude payments option from yellow to something easier to read
+- [ ] verify with a new import for all of february. make sure i don't get dupes and nothing gets missed
+- [ ] add a text based keyword filter on the transactions page
+- [ ] more testing and doc strings
+- [ ] github testing pipelines
+- [ ] deployment?
+
 ## What it does
 
 Budget Tracker allows you to:

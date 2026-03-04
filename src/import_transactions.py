@@ -18,6 +18,18 @@ if DB_PATH.exists():
 else:
     print("Database file not found yet — will be created on first import")
 
+def load_exclude_keywords() -> list[str]:
+    """
+    Load the list of keywords that should trigger auto-exclusion.
+    Returns a list of keyword strings from exclude_keywords.json.
+    """
+    exclude_path = Path(__file__).resolve().parent.parent / "exclude_keywords.json"
+    if not exclude_path.exists():
+        return []
+    with open(exclude_path, "r") as f:
+        data = json.load(f)
+    return [kw.upper() for kw in data.get("exclude_keywords", [])]
+
 def load_formats():
     """
     Load CSV format definitions from formats.json.
@@ -169,6 +181,8 @@ def import_csv(filepath, bank_name, formats):
 
     imported = 0
     skipped = 0
+    auto_excluded = 0
+    exclude_keywords = load_exclude_keywords()
     duplicates_skipped = 0
     duplicate_action = None  # None = ask each time, "skip_all", or "import_all"
 
@@ -223,6 +237,12 @@ def import_csv(filepath, bank_name, formats):
                 notes=category_name,
                 account_id=account.id,
             )
+
+            # Auto-exclude if description matches any exclude keyword
+            if any(kw in description.upper() for kw in exclude_keywords):
+                transaction.excluded = True
+                auto_excluded += 1
+
             db.add(transaction)
             imported += 1
 
@@ -231,6 +251,7 @@ def import_csv(filepath, bank_name, formats):
 
     print(f"\n--- Import Complete: {filepath.name} ---")
     print(f"  Imported:           {imported}")
+    print(f"  Auto-excluded:      {auto_excluded}")
     print(f"  Duplicates skipped: {duplicates_skipped}")
     print(f"  Rows skipped:       {skipped}")
 

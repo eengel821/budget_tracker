@@ -9,6 +9,19 @@
         <h4 class="mb-0 fw-bold">Transactions</h4>
         <small class="text-muted">{{ total_count }} transaction{{ 's' if total_count != 1 else '' }} found</small>
     </div>
+    <div>
+        {% if show_excluded %}
+        <a href="/transactions?{% if selected_month %}month={{ selected_month }}&{% endif %}{% if selected_account %}account_id={{ selected_account }}&{% endif %}{% if selected_category %}category_id={{ selected_category }}{% endif %}"
+            class="btn btn-sm btn-warning">
+            <i class="bi bi-eye-slash me-1"></i>Hide Excluded
+        </a>
+        {% else %}
+        <a href="/transactions?show_excluded=1{% if selected_month %}&month={{ selected_month }}{% endif %}{% if selected_account %}&account_id={{ selected_account }}{% endif %}{% if selected_category %}&category_id={{ selected_category }}{% endif %}"
+            class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-eye me-1"></i>Show Excluded
+        </a>
+        {% endif %}
+    </div>
 </div>
 
 <!-- Filters -->
@@ -83,7 +96,7 @@
                 </thead>
                 <tbody>
                     {% for t in transactions %}
-                    <tr id="row-{{ t.id }}">
+                    <tr id="row-{{ t.id }}" {% if t.excluded %}class="table-secondary" style="opacity:0.5;"{% endif %}>
 
                         <!-- Date -->
                         <td class="text-muted small align-middle">{{ t.date }}</td>
@@ -174,22 +187,19 @@
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end shadow-sm">
                                     <li>
-                                        <a class="dropdown-item small"
-                                            href="#"
+                                        <a class="dropdown-item small" href="#"
                                             onclick="editField('cat', {{ t.id }}, document.getElementById('cat-badge-{{ t.id }}')); return false;">
                                             <i class="bi bi-tag me-2 text-primary"></i>Change Category
                                         </a>
                                     </li>
                                     <li>
-                                        <a class="dropdown-item small"
-                                            href="#"
+                                        <a class="dropdown-item small" href="#"
                                             onclick="editField('desc', {{ t.id }}, document.getElementById('desc-text-{{ t.id }}')); return false;">
                                             <i class="bi bi-pencil me-2 text-secondary"></i>Edit Description
                                         </a>
                                     </li>
                                     <li>
-                                        <a class="dropdown-item small"
-                                            href="#"
+                                        <a class="dropdown-item small" href="#"
                                             onclick="editField('notes', {{ t.id }}, document.getElementById('notes-text-{{ t.id }}')); return false;">
                                             <i class="bi bi-sticky me-2 text-warning"></i>Add / Edit Note
                                         </a>
@@ -203,9 +213,24 @@
                                         </a>
                                     </li>
                                     <li><hr class="dropdown-divider"></li>
+                                    {% if t.excluded %}
                                     <li>
-                                        <a class="dropdown-item small text-danger"
-                                            href="#"
+                                        <a class="dropdown-item small text-success" href="#"
+                                            onclick="unexcludeTransaction({{ t.id }}); return false;">
+                                            <i class="bi bi-eye me-2"></i>Un-exclude
+                                        </a>
+                                    </li>
+                                    {% else %}
+                                    <li>
+                                        <a class="dropdown-item small text-warning" href="#"
+                                            onclick="excludeTransaction({{ t.id }}, '{{ t.description|replace("'", "\\'") }}'); return false;">
+                                            <i class="bi bi-eye-slash me-2"></i>Exclude from Reports
+                                        </a>
+                                    </li>
+                                    {% endif %}
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <a class="dropdown-item small text-danger" href="#"
                                             onclick="deleteTransaction({{ t.id }}, '{{ t.description|replace("'", "\\'") }}'); return false;">
                                             <i class="bi bi-trash me-2"></i>Delete
                                         </a>
@@ -294,7 +319,7 @@
                 display.classList.add('text-muted', 'small');
             }
         } else {
-            alert(`Failed to save. Please try again.`);
+            alert('Failed to save. Please try again.');
         }
 
         input.classList.add('d-none');
@@ -329,6 +354,42 @@
 
         selectEl.classList.add('d-none');
         badge.classList.remove('d-none');
+    }
+
+    // ── Exclude / unexclude transaction ──────────────────────────────────────
+
+    async function excludeTransaction(transactionId, description) {
+        if (!confirm(`Exclude "${description}" from reports and budget calculations?\n\nIt will be hidden from the transactions page but can be restored using "Show Excluded".`)) {
+            return;
+        }
+
+        const response = await fetch(`/api/transactions/${transactionId}/exclude`, {
+            method: 'PUT',
+        });
+
+        if (response.ok) {
+            const row = document.getElementById(`row-${transactionId}`);
+            row.style.transition = 'opacity 0.3s';
+            row.style.opacity = '0';
+            setTimeout(() => row.remove(), 300);
+        } else {
+            alert('Failed to exclude transaction. Please try again.');
+        }
+    }
+
+    async function unexcludeTransaction(transactionId) {
+        const response = await fetch(`/api/transactions/${transactionId}/unexclude`, {
+            method: 'PUT',
+        });
+
+        if (response.ok) {
+            const row = document.getElementById(`row-${transactionId}`);
+            row.style.transition = 'opacity 0.3s';
+            row.style.opacity = '0';
+            setTimeout(() => row.remove(), 300);
+        } else {
+            alert('Failed to un-exclude transaction. Please try again.');
+        }
     }
 
     // ── Delete transaction ───────────────────────────────────────────────────
