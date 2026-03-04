@@ -78,7 +78,23 @@
                 <tbody>
                     {% for category in categories %}
                     <tr id="row-{{ category.id }}">
-                        <td class="fw-semibold align-middle">{{ category.name }}</td>
+                        <td class="align-middle">
+                            <span
+                                id="name-text-{{ category.id }}"
+                                class="editable-field fw-semibold"
+                                title="Click to rename category"
+                                onclick="editName({{ category.id }}, this)">
+                                {{ category.name }}
+                            </span>
+                            <input
+                                id="name-input-{{ category.id }}"
+                                type="text"
+                                class="form-control form-control-sm d-none"
+                                value="{{ category.name }}"
+                                maxlength="100"
+                                onblur="saveName({{ category.id }})"
+                                onkeydown="handleNameKey(event, {{ category.id }})">
+                        </td>
                         <td>
                             <div class="input-group input-group-sm">
                                 <span class="input-group-text">$</span>
@@ -211,7 +227,23 @@
             const newRow = document.createElement('tr');
             newRow.id = 'row-' + data.id;
             newRow.innerHTML = `
-                <td class="fw-semibold align-middle">${data.name}</td>
+                <td class="align-middle">
+                    <span
+                        id="name-text-${data.id}"
+                        class="editable-field fw-semibold"
+                        title="Click to rename category"
+                        onclick="editName(${data.id}, this)">
+                        ${data.name}
+                    </span>
+                    <input
+                        id="name-input-${data.id}"
+                        type="text"
+                        class="form-control form-control-sm d-none"
+                        value="${data.name}"
+                        maxlength="100"
+                        onblur="saveName(${data.id})"
+                        onkeydown="handleNameKey(event, ${data.id})">
+                </td>
                 <td>
                     <div class="input-group input-group-sm">
                         <span class="input-group-text">$</span>
@@ -237,6 +269,66 @@
             messageDiv.className = 'mt-2 alert alert-danger py-2';
             messageDiv.textContent = 'Failed to add category. Please try again.';
         }
+    }
+
+    // ── Category name editing ────────────────────────────────────────────────
+
+    function editName(categoryId, spanEl) {
+        const input = document.getElementById("name-input-" + categoryId);
+        spanEl.classList.add("d-none");
+        input.classList.remove("d-none");
+        input.focus();
+        input.select();
+    }
+
+    function handleNameKey(event, categoryId) {
+        if (event.key === "Enter") saveName(categoryId);
+        if (event.key === "Escape") cancelName(categoryId);
+    }
+
+    function cancelName(categoryId) {
+        const input = document.getElementById("name-input-" + categoryId);
+        const span  = document.getElementById("name-text-" + categoryId);
+        input.value = span.textContent.trim();
+        input.classList.add("d-none");
+        span.classList.remove("d-none");
+    }
+
+    async function saveName(categoryId) {
+        const input = document.getElementById("name-input-" + categoryId);
+        const span  = document.getElementById("name-text-" + categoryId);
+        const newName = input.value.trim();
+
+        if (!newName) { cancelName(categoryId); return; }
+        if (newName === span.textContent.trim()) {
+            // No change — just close the input
+            input.classList.add("d-none");
+            span.classList.remove("d-none");
+            return;
+        }
+
+        const response = await fetch(`/api/categories/${categoryId}/name`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: newName })
+        });
+
+        if (response.ok) {
+            span.textContent = newName;
+            const row = document.getElementById("row-" + categoryId);
+            row.style.transition = "background-color 0.2s";
+            row.style.backgroundColor = "#d1fae5";
+            setTimeout(() => row.style.backgroundColor = "", 1000);
+        } else if (response.status === 409) {
+            alert(`A category named "${newName}" already exists.`);
+            cancelName(categoryId);
+        } else {
+            alert("Failed to rename category. Please try again.");
+            cancelName(categoryId);
+        }
+
+        input.classList.add("d-none");
+        span.classList.remove("d-none");
     }
 
     function updateTotal() {

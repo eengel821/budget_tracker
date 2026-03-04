@@ -5,6 +5,9 @@ A personal budget tracking application built with Python, FastAPI, SQLite, and S
 ## TODO Task List
 - [X] Automatically exclude CC pmt transactions
 - [ ] change color of the exclude payments option from yellow to something easier to read
+- [ ] transactions page - better filters, sorting, collapse/expand
+- [ ] Budget Page - not all expenses are shown, only ones that have a non-zero budgeted value, but it means i can't see when i spend on a category with no budget. Also would like to see the budget totals for expenses, income and net
+- [X] manage categories - would be nice to edit a category title and fix on the DB for all associated transactions
 - [ ] verify with a new import for all of february. make sure i don't get dupes and nothing gets missed
 - [ ] add a text based keyword filter on the transactions page
 - [ ] more testing and doc strings

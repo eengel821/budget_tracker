@@ -54,6 +54,9 @@ class CategoryCreate(BaseModel):
     name: str
     monthly_budget: float = 0.0
 
+class CategoryRename(BaseModel):
+    name: str
+
 class TransactionPatch(BaseModel):
     description: Optional[str] = None
     notes: Optional[str] = None
@@ -524,6 +527,33 @@ def create_category(
         "monthly_budget": category.monthly_budget,
     }
 
+@app.put("/api/categories/{category_id}/name")
+def rename_category(
+    category_id: int,
+    body: CategoryRename,
+    db: Session = Depends(get_db),
+):
+    """Rename a category. Returns 409 if the new name already exists."""
+    category = db.query(Category).filter(Category.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    existing = db.query(Category).filter(
+        Category.name == body.name,
+        Category.id != category_id,
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail=f"Category '{body.name}' already exists")
+
+    old_name = category.name
+    category.name = body.name
+    db.commit()
+
+    return {
+        "message": f"Category renamed from '{old_name}' to '{body.name}'",
+        "category_id": category_id,
+        "name": category.name,
+    }
 
 @app.put("/api/categories/{category_id}/budget")
 def update_category_budget(
