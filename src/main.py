@@ -5,6 +5,8 @@ Serves Jinja2 HTML templates for the browser interface and JSON endpoints
 for the review queue's JavaScript category assignment.
 """
 
+import csv
+import io
 from contextlib import asynccontextmanager
 from datetime import date, datetime
 from pathlib import Path
@@ -12,7 +14,7 @@ from typing import Optional
 import sys
 
 from fastapi import FastAPI, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -34,7 +36,6 @@ from categorizer import categorize_all_uncategorized
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    _run_backup()
     yield
 
 app = FastAPI(title="Budget Tracker", lifespan=lifespan)
@@ -63,43 +64,6 @@ class TransactionPatch(BaseModel):
 
 
 # ── Helper functions ─────────────────────────────────────────────────────────
-
-def _run_backup():
-    """
-    Create a database backup on startup.
-    Skips if a backup was already created within the last 60 seconds
-    to prevent multiple backups when uvicorn --reload restarts workers.
-    Errors are caught and logged but do not prevent the app from starting.
-    """
-    try:
-        backup_script = src_path.parent / "backup_db.py"
-        if not backup_script.exists():
-            print("Warning: backup_db.py not found — skipping startup backup")
-            return
-
-        # Check if a backup was created recently
-        backup_dir = src_path.parent / "backups"
-        if backup_dir.exists():
-            existing = sorted(backup_dir.glob("budget_*.db"))
-            if existing:
-                latest = existing[-1]
-                age_seconds = (datetime.now() - datetime.fromtimestamp(latest.stat().st_mtime)).total_seconds()
-                if age_seconds < 60:
-                    return  # skip silently — backup already created recently
-
-        import subprocess
-        result = subprocess.run(
-            [sys.executable, str(backup_script)],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode == 0:
-            print(f"✓ Backup created on startup")
-        else:
-            print(f"Warning: Backup failed — {result.stderr.strip()}")
-
-    except Exception as e:
-        print(f"Warning: Backup error — {e}")
 
 def get_available_months(db: Session) -> list[dict]:
     """
@@ -148,19 +112,76 @@ def get_uncategorized_count(db: Session) -> int:
 def get_monthly_spending(db: Session, year: int, month: int):
     """
     Return aggregated spending per category for a given month.
-    Only includes transactions with a negative amount (debits).
+    Sums ALL transaction amounts for non-income categories (debits and credits).
+    Refunds/credits in expense categories reduce the net total correctly.
+    Excludes income categories and excluded transactions.
     """
     return db.query(
         Category.name.label("category_name"),
         Category.monthly_budget.label("monthly_budget"),
         func.sum(Transaction.amount).label("total"),
-    ).join(Transaction, Transaction.category_id == Category.id)\
-     .filter(
-        extract("year", Transaction.date) == year,
+    ).join(Transaction, Transaction.category_id == Category.id)     .filter(
+        extract("year",  Transaction.date) == year,
         extract("month", Transaction.date) == month,
-        Transaction.amount < 0,
         Transaction.excluded == False,
+        Category.is_income == False,
     ).group_by(Category.id).order_by(func.sum(Transaction.amount)).all()
+
+
+def get_monthly_income(db: Session, year: int, month: int):
+    """
+    Return aggregated income per category for a given month.
+    Only counts positive transactions in is_income categories.
+    """
+    return db.query(
+        Category.name.label("category_name"),
+        Category.monthly_budget.label("monthly_budget"),
+        func.sum(Transaction.amount).label("total"),
+    ).join(Transaction, Transaction.category_id == Category.id)     .filter(
+        extract("year",  Transaction.date) == year,
+        extract("month", Transaction.date) == month,
+        Transaction.amount > 0,
+        Transaction.excluded == False,
+        Category.is_income == True,
+    ).group_by(Category.id).order_by(func.sum(Transaction.amount).desc()).all()
+
+
+def get_total_expenses(db: Session, year: int, month: int) -> float:
+    """
+    Total expenses for a month: sum of ALL transactions in non-income
+    categories plus uncategorized transactions (excluded never counted).
+    Returns a negative number representing net outflow.
+    """
+    categorized = db.query(func.sum(Transaction.amount))        .join(Category, Transaction.category_id == Category.id)        .filter(
+            extract("year",  Transaction.date) == year,
+            extract("month", Transaction.date) == month,
+            Transaction.excluded == False,
+            Category.is_income == False,
+        ).scalar() or 0
+
+    uncategorized = db.query(func.sum(Transaction.amount))        .filter(
+            extract("year",  Transaction.date) == year,
+            extract("month", Transaction.date) == month,
+            Transaction.excluded == False,
+            Transaction.category_id.is_(None),
+        ).scalar() or 0
+
+    return categorized + uncategorized
+
+
+def get_total_income(db: Session, year: int, month: int) -> float:
+    """
+    Total income for a month: sum of positive transactions in
+    is_income categories only. Excluded transactions never counted.
+    """
+    return db.query(func.sum(Transaction.amount))        .join(Category, Transaction.category_id == Category.id)        .filter(
+            extract("year",  Transaction.date) == year,
+            extract("month", Transaction.date) == month,
+            Transaction.amount > 0,
+            Transaction.excluded == False,
+            Category.is_income == True,
+        ).scalar() or 0
+
 
 # ── Frontend routes ──────────────────────────────────────────────────────────
 
@@ -168,22 +189,18 @@ def get_monthly_spending(db: Session, year: int, month: int):
 def dashboard(request: Request, db: Session = Depends(get_db), month: Optional[str] = None):
     """Render the dashboard with monthly summary stats and charts."""
     available_months = get_available_months(db)
-    if month:
-        selected_month = month
-    elif available_months:
-        selected_month = available_months[-1]["value"]  # most recent month with data
-    else:
-        selected_month = get_current_month_str()
+    selected_month = month or (available_months[-1]["value"] if available_months else get_current_month_str())
     year, mo = parse_month(selected_month)
 
-    spending = get_monthly_spending(db, year, mo)
-
-    total_spent = sum(row.total for row in spending)
-    total_budgeted = sum(row.monthly_budget or 0 for row in spending)
+    spending        = get_monthly_spending(db, year, mo)
+    total_spent     = get_total_expenses(db, year, mo)
+    total_income    = get_total_income(db, year, mo)
+    total_budgeted  = sum(row.monthly_budget or 0 for row in spending)
     total_remaining = total_budgeted - abs(total_spent)
+    net_total       = total_income + total_spent  # total_spent is negative
 
     category_labels = [row.category_name for row in spending]
-    category_spent  = [abs(row.total) for row in spending]
+    category_spent  = [abs(row.total)     for row in spending]
     category_budget = [row.monthly_budget or 0 for row in spending]
 
     top_categories = [
@@ -191,9 +208,8 @@ def dashboard(request: Request, db: Session = Depends(get_db), month: Optional[s
         for row in sorted(spending, key=lambda r: r.total)[:5]
     ]
 
-    recent_transactions = db.query(Transaction)\
-        .filter(
-            extract("year", Transaction.date) == year,
+    recent_transactions = db.query(Transaction)        .filter(
+            extract("year",  Transaction.date) == year,
             extract("month", Transaction.date) == mo,
             Transaction.excluded == False,
         ).order_by(Transaction.date.desc()).limit(10).all()
@@ -205,8 +221,10 @@ def dashboard(request: Request, db: Session = Depends(get_db), month: Optional[s
         "selected_month": selected_month,
         "current_month_label": get_month_label(selected_month),
         "total_spent": total_spent,
+        "total_income": total_income,
         "total_budgeted": total_budgeted,
         "total_remaining": total_remaining,
+        "net_total": net_total,
         "category_labels": category_labels,
         "category_spent": category_spent,
         "category_budget": category_budget,
@@ -226,7 +244,7 @@ def transactions_page(
     show_excluded: Optional[str] = None,
     keyword: Optional[str] = None,
     date_from: Optional[str] = None,
-    date_to: Optional[str] = None,    
+    date_to: Optional[str] = None,
 ):
     """Render the transaction list with optional filters."""
     show_excluded_param = show_excluded
@@ -260,9 +278,21 @@ def transactions_page(
         query = query.filter(Transaction.excluded == False)
 
     transactions = query.order_by(Transaction.date.desc()).all()
-    total_spent = sum(t.amount for t in transactions if t.amount < 0)
-    total_income = sum(t.amount for t in transactions if t.amount > 0)
-    net_total = total_income + total_spent
+
+    # Expenses: all transactions in non-income or uncategorized
+    # Income: only positive transactions in is_income categories
+    income_cat_ids = {
+        c.id for c in db.query(Category).filter(Category.is_income == True).all()
+    }
+    total_spent = sum(
+        t.amount for t in transactions
+        if t.category_id is None or t.category_id not in income_cat_ids
+    )
+    total_income = sum(
+        t.amount for t in transactions
+        if t.amount > 0 and t.category_id in income_cat_ids
+    )
+    net_total = total_income + total_spent  # total_spent is negative
 
     return templates.TemplateResponse("transactions.html", {
         "request": request,
@@ -276,7 +306,7 @@ def transactions_page(
         "selected_category": category_id or "",
         "selected_keyword": keyword or "",
         "selected_date_from": date_from or "",
-        "selected_date_to": date_to or "",       
+        "selected_date_to": date_to or "",
         "show_excluded": show_excluded,
         "total_count": len(transactions),
         "total_spent": total_spent,
@@ -284,6 +314,65 @@ def transactions_page(
         "net_total": net_total,
         "uncategorized_count": get_uncategorized_count(db),
     })
+
+
+@app.get("/transactions/download")
+def download_transactions(
+    db: Session = Depends(get_db),
+    month: Optional[str] = None,
+    account_id: Optional[str] = None,
+    category_id: Optional[str] = None,
+    keyword: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+):
+    """Download the current filtered transaction view as a CSV file."""
+    query = db.query(Transaction).filter(Transaction.excluded == False)
+
+    if month:
+        year, mo = parse_month(month)
+        query = query.filter(
+            extract("year",  Transaction.date) == year,
+            extract("month", Transaction.date) == mo,
+        )
+    if account_id:
+        query = query.filter(Transaction.account_id == int(account_id))
+    if category_id == "none":
+        query = query.filter(Transaction.category_id.is_(None))
+    elif category_id:
+        query = query.filter(Transaction.category_id == int(category_id))
+    if keyword:
+        query = query.filter(Transaction.description.ilike(f"%{keyword}%"))
+    if date_from:
+        query = query.filter(Transaction.date >= date_from)
+    if date_to:
+        query = query.filter(Transaction.date <= date_to)
+
+    transactions = query.order_by(Transaction.date.desc()).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Date", "Description", "Category", "Account", "Debit", "Credit", "Notes"])
+    for t in transactions:
+        debit  = f"{abs(t.amount):.2f}" if t.amount < 0 else ""
+        credit = f"{t.amount:.2f}"      if t.amount > 0 else ""
+        writer.writerow([
+            t.date,
+            t.description,
+            t.category.name if t.category else "",
+            t.account.name  if t.account  else "",
+            debit,
+            credit,
+            t.notes or "",
+        ])
+
+    output.seek(0)
+    filename = f"transactions_{month or 'all'}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 @app.get("/review", response_class=HTMLResponse)
@@ -312,39 +401,67 @@ def review_page(request: Request, db: Session = Depends(get_db), message: Option
 def budget_page(request: Request, db: Session = Depends(get_db), month: Optional[str] = None):
     """Render the budget vs actual comparison page."""
     available_months = get_available_months(db)
-    if month:
-        selected_month = month
-    elif available_months:
-        selected_month = available_months[-1]["value"]  # most recent month with data
-    else:
-        selected_month = get_current_month_str()
+    selected_month = (month or available_months[-1]["value"]) if available_months else get_current_month_str()
     year, mo = parse_month(selected_month)
 
     spending = get_monthly_spending(db, year, mo)
+    income   = get_monthly_income(db, year, mo)
 
-    all_categories = db.query(Category)\
-        .filter(Category.monthly_budget > 0)\
-        .order_by(Category.name).all()
+    spent_by_cat  = {row.category_name: row.total for row in spending}
+    income_by_cat = {row.category_name: row.total for row in income}
 
-    spent_by_cat = {row.category_name: row.total for row in spending}
+    all_categories = db.query(Category).order_by(Category.name).all()
 
-    budget_rows = []
+    expense_rows = []
+    income_rows  = []
+
     for cat in all_categories:
-        spent = abs(spent_by_cat.get(cat.name, 0))
         budgeted = cat.monthly_budget or 0
-        remaining = budgeted - spent
-        pct_used = (spent / budgeted * 100) if budgeted > 0 else 0
-        budget_rows.append({
-            "category": cat.name,
-            "budgeted": budgeted,
-            "spent": spent,
+        if cat.is_income:
+            actual = income_by_cat.get(cat.name, 0)
+        else:
+            net    = spent_by_cat.get(cat.name, 0)
+            actual = -net if net < 0 else 0
+        if budgeted == 0 and actual == 0:
+            continue
+        pct_used  = (actual / budgeted * 100) if budgeted > 0 else None
+        remaining = budgeted - actual
+        row = {
+            "id":        cat.id,
+            "category":  cat.name,
+            "budgeted":  budgeted,
+            "spent":     actual,
             "remaining": remaining,
-            "pct_used": pct_used,
+            "pct_used":  pct_used,
+        }
+        if cat.is_income:
+            income_rows.append(row)
+        else:
+            expense_rows.append(row)
+
+    # Unassigned bucket — uncategorized non-excluded expense transactions
+    unassigned_txns = db.query(Transaction).filter(
+        extract("year",  Transaction.date) == year,
+        extract("month", Transaction.date) == mo,
+        Transaction.category_id.is_(None),
+        Transaction.excluded == False,
+    ).all()
+    unassigned_total = abs(sum(t.amount for t in unassigned_txns if t.amount < 0))
+    if unassigned_total > 0:
+        expense_rows.append({
+            "id":        None,
+            "category":  "Unassigned",
+            "budgeted":  0,
+            "spent":     unassigned_total,
+            "remaining": -unassigned_total,
+            "pct_used":  None,
         })
 
-    total_budgeted = sum(r["budgeted"] for r in budget_rows)
-    total_spent = sum(r["spent"] for r in budget_rows)
+    total_budgeted  = sum(r["budgeted"] for r in expense_rows if r["category"] != "Unassigned")
+    total_spent     = abs(get_total_expenses(db, year, mo))
     total_remaining = total_budgeted - total_spent
+    total_income    = get_total_income(db, year, mo)
+    net_total       = total_income - total_spent
 
     return templates.TemplateResponse("budget.html", {
         "request": request,
@@ -352,13 +469,19 @@ def budget_page(request: Request, db: Session = Depends(get_db), month: Optional
         "available_months": available_months,
         "selected_month": selected_month,
         "current_month_label": get_month_label(selected_month),
-        "budget_rows": budget_rows,
-        "budget_labels": [r["category"] for r in budget_rows],
-        "budget_amounts": [r["budgeted"] for r in budget_rows],
-        "spent_amounts": [r["spent"] for r in budget_rows],
-        "total_budgeted": total_budgeted,
-        "total_spent": total_spent,
+        "expense_rows":    expense_rows,
+        "income_rows":     income_rows,
+        "expense_labels":  [r["category"] for r in expense_rows],
+        "expense_budgets": [r["budgeted"]  for r in expense_rows],
+        "expense_spent":   [r["spent"]     for r in expense_rows],
+        "income_labels":   [r["category"]  for r in income_rows],
+        "income_budgets":  [r["budgeted"]  for r in income_rows],
+        "income_spent":    [r["spent"]     for r in income_rows],
+        "total_budgeted":  total_budgeted,
+        "total_spent":     total_spent,
         "total_remaining": total_remaining,
+        "total_income":    total_income,
+        "net_total":       net_total,
         "uncategorized_count": get_uncategorized_count(db),
     })
 
@@ -386,12 +509,7 @@ def budget_manage_page(
 def categories_page(request: Request, db: Session = Depends(get_db), month: Optional[str] = None):
     """Render the category breakdown page with doughnut chart."""
     available_months = get_available_months(db)
-    if month:
-        selected_month = month
-    elif available_months:
-        selected_month = available_months[-1]["value"]  # most recent month with data
-    else:
-        selected_month = get_current_month_str()
+    selected_month = month or (available_months[-1]["value"] if available_months else get_current_month_str())
     year, mo = parse_month(selected_month)
 
     spending = get_monthly_spending(db, year, mo)
@@ -539,6 +657,7 @@ def create_category(
         "monthly_budget": category.monthly_budget,
     }
 
+
 @app.put("/api/categories/{category_id}/name")
 def rename_category(
     category_id: int,
@@ -567,6 +686,24 @@ def rename_category(
         "name": category.name,
     }
 
+
+@app.put("/api/categories/{category_id}/is_income")
+def toggle_category_is_income(
+    category_id: int,
+    db: Session = Depends(get_db),
+):
+    """Toggle the is_income flag on a category."""
+    category = db.query(Category).filter(Category.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    category.is_income = not category.is_income
+    db.commit()
+    return {
+        "category_id": category_id,
+        "is_income": category.is_income,
+    }
+
+
 @app.put("/api/categories/{category_id}/budget")
 def update_category_budget(
     category_id: int,
@@ -586,6 +723,7 @@ def update_category_budget(
         "category_id": category.id,
         "monthly_budget": category.monthly_budget,
     }
+
 
 # ── Documentation ────────────────────────────────────────────────────────────
 
@@ -607,6 +745,7 @@ from fastapi.staticfiles import StaticFiles as _StaticFiles
 _docs_site = src_path.parent / "site"
 if _docs_site.exists():
     app.mount("/documentation", _StaticFiles(directory=_docs_site, html=True), name="docs-site")
+
 
 # ── Exclude / unexclude transactions ─────────────────────────────────────────
 

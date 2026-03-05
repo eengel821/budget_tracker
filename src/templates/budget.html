@@ -13,34 +13,34 @@
         <a href="/budget/manage" class="btn btn-outline-primary btn-sm">
             <i class="bi bi-pencil-square me-1"></i>Manage Budgets
         </a>
+        <form method="get" action="/budget" class="d-flex align-items-center gap-2">
+            <label class="text-muted small me-1">Month:</label>
+            <select name="month" class="form-select form-select-sm month-selector" onchange="this.form.submit()">
+                {% for m in available_months %}
+                <option value="{{ m.value }}" {% if m.value == selected_month %}selected{% endif %}>
+                    {{ m.label }}
+                </option>
+                {% endfor %}
+            </select>
+        </form>
     </div>
-    <form method="get" action="/budget" class="d-flex align-items-center gap-2">
-        <label class="text-muted small me-1">Month:</label>
-        <select name="month" class="form-select form-select-sm month-selector" onchange="this.form.submit()">
-            {% for m in available_months %}
-            <option value="{{ m.value }}" {% if m.value == selected_month %}selected{% endif %}>
-                {{ m.label }}
-            </option>
-            {% endfor %}
-        </select>
-    </form>
 </div>
 
 <!-- Summary stat cards -->
 <div class="row g-3 mb-4">
-    <div class="col-12 col-sm-4">
-        <div class="stat-card stat-bg-green">
-            <div class="stat-label"><i class="bi bi-bullseye me-1"></i>Total Budgeted</div>
+    <div class="col-12 col-sm-6 col-md">
+        <div class="stat-card stat-bg-blue">
+            <div class="stat-label"><i class="bi bi-bullseye me-1"></i>Budgeted Expenses</div>
             <div class="stat-value">${{ "%.2f"|format(total_budgeted) }}</div>
         </div>
     </div>
-    <div class="col-12 col-sm-4">
-        <div class="stat-card stat-bg-blue">
-            <div class="stat-label"><i class="bi bi-credit-card me-1"></i>Total Spent</div>
-            <div class="stat-value">${{ "%.2f"|format(total_spent|abs) }}</div>
+    <div class="col-12 col-sm-6 col-md">
+        <div class="stat-card stat-bg-red">
+            <div class="stat-label"><i class="bi bi-credit-card me-1"></i>Actual Expenses</div>
+            <div class="stat-value">${{ "%.2f"|format(total_spent) }}</div>
         </div>
     </div>
-    <div class="col-12 col-sm-4">
+    <div class="col-12 col-sm-6 col-md">
         {% if total_remaining >= 0 %}
         <div class="stat-card stat-bg-green">
             <div class="stat-label"><i class="bi bi-piggy-bank me-1"></i>Remaining</div>
@@ -55,19 +55,42 @@
         </div>
         {% endif %}
     </div>
-</div>
-
-<!-- Budget vs actual chart -->
-<div class="card mb-4">
-    <div class="card-header"><i class="bi bi-bar-chart me-2"></i>Budget vs Actual by Category</div>
-    <div class="card-body chart-container">
-        <canvas id="budgetChart" style="max-height: 400px;"></canvas>
+    <div class="col-12 col-sm-6 col-md">
+        <div class="stat-card stat-bg-green">
+            <div class="stat-label"><i class="bi bi-arrow-down-circle me-1"></i>Total Income</div>
+            <div class="stat-value">+${{ "%.2f"|format(total_income) }}</div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-md">
+        {% if net_total >= 0 %}
+        <div class="stat-card stat-bg-green">
+            <div class="stat-label"><i class="bi bi-calculator me-1"></i>Net Total</div>
+            <div class="stat-value">+${{ "%.2f"|format(net_total) }}</div>
+            <div class="stat-sub">Came out ahead ✓</div>
+        </div>
+        {% else %}
+        <div class="stat-card stat-bg-red">
+            <div class="stat-label"><i class="bi bi-calculator me-1"></i>Net Total</div>
+            <div class="stat-value">-${{ "%.2f"|format(net_total|abs) }}</div>
+            <div class="stat-sub">Spent more than earned</div>
+        </div>
+        {% endif %}
     </div>
 </div>
 
-<!-- Budget breakdown table -->
-<div class="card">
-    <div class="card-header"><i class="bi bi-table me-2"></i>Category Breakdown</div>
+<!-- ── Expenses section ─────────────────────────────────────────────────── -->
+<h5 class="fw-bold mb-3"><i class="bi bi-credit-card me-2 text-danger"></i>Expenses</h5>
+
+{% if expense_rows %}
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-bar-chart me-2"></i>Budget vs Actual by Category</div>
+    <div class="card-body chart-container">
+        <canvas id="expenseChart" style="max-height: 400px;"></canvas>
+    </div>
+</div>
+
+<div class="card mb-5">
+    <div class="card-header"><i class="bi bi-table me-2"></i>Expense Breakdown</div>
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-hover mb-0">
@@ -77,27 +100,28 @@
                         <th class="text-end">Budgeted</th>
                         <th class="text-end">Spent</th>
                         <th class="text-end">Remaining</th>
-                        <th style="min-width: 150px;">Progress</th>
+                        <th style="min-width:150px;">Progress</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for row in budget_rows %}
+                    {% for row in expense_rows %}
                     <tr>
                         <td class="fw-semibold">{{ row.category }}</td>
-                        <td class="text-end text-muted">${{ "%.2f"|format(row.budgeted) }}</td>
-                        <td class="text-end amount-debit">${{ "%.2f"|format(row.spent|abs) }}</td>
+                        <td class="text-end text-muted">
+                            {% if row.budgeted > 0 %}${{ "%.2f"|format(row.budgeted) }}
+                            {% else %}<span class="fst-italic text-muted">none</span>{% endif %}
+                        </td>
+                        <td class="text-end amount-debit">${{ "%.2f"|format(row.spent) }}</td>
                         <td class="text-end
                             {% if row.remaining < 0 %}budget-over
-                            {% elif row.pct_used > 80 %}budget-warn
+                            {% elif row.pct_used is not none and row.pct_used > 80 %}budget-warn
                             {% else %}budget-under{% endif %}">
-                            {% if row.remaining < 0 %}
-                            -${{ "%.2f"|format(row.remaining|abs) }}
-                            {% else %}
-                            ${{ "%.2f"|format(row.remaining) }}
-                            {% endif %}
+                            {% if row.budgeted == 0 %}<span class="fst-italic text-muted">n/a</span>
+                            {% elif row.remaining < 0 %}-${{ "%.2f"|format(row.remaining|abs) }}
+                            {% else %}${{ "%.2f"|format(row.remaining) }}{% endif %}
                         </td>
                         <td>
-                            {% if row.budgeted > 0 %}
+                            {% if row.pct_used is not none %}
                             <div class="progress">
                                 <div class="progress-bar
                                     {% if row.pct_used >= 100 %}bg-danger
@@ -109,40 +133,129 @@
                             </div>
                             <small class="text-muted">{{ "%.0f"|format(row.pct_used) }}%</small>
                             {% else %}
-                            <small class="text-muted">No budget set</small>
+                            <small class="fst-italic text-muted">No budget set</small>
                             {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
+                <tfoot class="table-light">
+                    <tr class="fw-semibold">
+                        <td>Total</td>
+                        <td class="text-end text-muted">${{ "%.2f"|format(total_budgeted) }}</td>
+                        <td class="text-end amount-debit">${{ "%.2f"|format(total_spent) }}</td>
+                        <td class="text-end {% if total_remaining >= 0 %}budget-under{% else %}budget-over{% endif %}">
+                            {% if total_remaining < 0 %}-{% endif %}${{ "%.2f"|format(total_remaining|abs) }}
+                        </td>
+                        <td></td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
     </div>
 </div>
+{% else %}
+<div class="alert alert-info mb-5">No expense categories with activity this month.</div>
+{% endif %}
+
+<!-- ── Income section ──────────────────────────────────────────────────── -->
+<h5 class="fw-bold mb-3"><i class="bi bi-arrow-down-circle me-2 text-success"></i>Income</h5>
+
+{% if income_rows %}
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-bar-chart me-2"></i>Income by Category</div>
+    <div class="card-body chart-container">
+        <canvas id="incomeChart" style="max-height: 250px;"></canvas>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-table me-2"></i>Income Breakdown</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th class="text-end">Expected</th>
+                        <th class="text-end">Received</th>
+                        <th class="text-end">Difference</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in income_rows %}
+                    <tr>
+                        <td class="fw-semibold">{{ row.category }}</td>
+                        <td class="text-end text-muted">
+                            {% if row.budgeted > 0 %}${{ "%.2f"|format(row.budgeted) }}
+                            {% else %}<span class="fst-italic text-muted">none</span>{% endif %}
+                        </td>
+                        <td class="text-end amount-credit">${{ "%.2f"|format(row.spent) }}</td>
+                        <td class="text-end">
+                            {% if row.budgeted == 0 %}
+                            <span class="fst-italic text-muted">n/a</span>
+                            {% elif row.spent >= row.budgeted %}
+                            <span class="amount-credit">+${{ "%.2f"|format(row.spent - row.budgeted) }}</span>
+                            {% else %}
+                            <span class="amount-debit">-${{ "%.2f"|format(row.budgeted - row.spent) }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light">
+                    <tr class="fw-semibold border-top">
+                        <td>Total Income</td>
+                        <td></td>
+                        <td class="text-end amount-credit">+${{ "%.2f"|format(total_income) }}</td>
+                        <td></td>
+                    </tr>
+                    <tr class="fw-semibold">
+                        <td>Total Expenses</td>
+                        <td></td>
+                        <td class="text-end amount-debit">-${{ "%.2f"|format(total_spent) }}</td>
+                        <td></td>
+                    </tr>
+                    <tr class="fw-bold border-top">
+                        <td>Net Total</td>
+                        <td></td>
+                        <td class="text-end {% if net_total >= 0 %}amount-credit{% else %}amount-debit{% endif %}">
+                            {% if net_total >= 0 %}+{% else %}-{% endif %}${{ "%.2f"|format(net_total|abs) }}
+                        </td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info">
+    No income categories with activity this month.
+    <a href="/budget/manage" class="alert-link">Mark categories as income</a> on the Manage Budgets page.
+</div>
+{% endif %}
 
 {% endblock %}
 
 {% block scripts %}
 <script>
-    const labels  = {{ budget_labels  | tojson }};
-    const budgets = {{ budget_amounts | tojson }};
-    const spent   = {{ spent_amounts  | tojson }};
-
-    new Chart(document.getElementById("budgetChart"), {
+    {% if expense_rows %}
+    new Chart(document.getElementById("expenseChart"), {
         type: "bar",
         data: {
-            labels: labels,
+            labels: {{ expense_labels | tojson }},
             datasets: [
                 {
                     label: "Budgeted",
-                    data: budgets,
+                    data: {{ expense_budgets | tojson }},
                     backgroundColor: "rgba(28, 200, 138, 0.6)",
                     borderRadius: 4,
                 },
                 {
                     label: "Spent",
-                    data: spent,
-                    backgroundColor: "rgba(78, 115, 223, 0.8)",
+                    data: {{ expense_spent | tojson }},
+                    backgroundColor: "rgba(231, 74, 59, 0.7)",
                     borderRadius: 4,
                 }
             ]
@@ -158,5 +271,39 @@
             }
         }
     });
+    {% endif %}
+
+    {% if income_rows %}
+    new Chart(document.getElementById("incomeChart"), {
+        type: "bar",
+        data: {
+            labels: {{ income_labels | tojson }},
+            datasets: [
+                {
+                    label: "Expected",
+                    data: {{ income_budgets | tojson }},
+                    backgroundColor: "rgba(28, 200, 138, 0.4)",
+                    borderRadius: 4,
+                },
+                {
+                    label: "Received",
+                    data: {{ income_spent | tojson }},
+                    backgroundColor: "rgba(28, 200, 138, 0.9)",
+                    borderRadius: 4,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { position: "top" } },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { callback: val => "$" + val.toLocaleString() }
+                }
+            }
+        }
+    });
+    {% endif %}
 </script>
 {% endblock %}

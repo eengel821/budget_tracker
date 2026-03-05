@@ -26,6 +26,7 @@ class Category(Base):
     id             = Column(Integer, primary_key=True, index=True)
     name           = Column(String, unique=True, nullable=False)
     monthly_budget = Column(Float, default=0.0)
+    is_income      = Column(Boolean, default=False, nullable=False)
 
     transactions = relationship("Transaction", back_populates="category")
 
