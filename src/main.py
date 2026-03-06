@@ -737,25 +737,10 @@ def update_category_budget(
 
 
 # ── Documentation ────────────────────────────────────────────────────────────
-
-@app.get("/docs-page", response_class=HTMLResponse)
-def docs_page(request: Request, db: Session = Depends(get_db)):
-    """Render the documentation page with embedded MkDocs site."""
-    return templates.TemplateResponse("docs.html", {
-        "request": request,
-        "active_page": "docs",
-        "uncategorized_count": get_uncategorized_count(db),
-    })
-
-
-
-from fastapi.staticfiles import StaticFiles as _StaticFiles
-
-# Serve the built MkDocs site at /documentation
-# Run `mkdocs build` from the project root to generate the site/ folder
-_docs_site = src_path.parent / "site"
-if _docs_site.exists():
-    app.mount("/documentation", _StaticFiles(directory=_docs_site, html=True), name="docs-site")
+# Docs are hosted on GitHub Pages at:
+# https://eengel821.github.io/budget_tracker/
+# The GitHub Actions workflow in .github/workflows/docs.yml deploys
+# automatically whenever docs/ or mkdocs.yml changes are pushed to main.
 
 
 # ── Exclude / unexclude transactions ─────────────────────────────────────────
