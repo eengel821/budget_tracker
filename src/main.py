@@ -195,7 +195,7 @@ def dashboard(request: Request, db: Session = Depends(get_db), month: Optional[s
     spending        = get_monthly_spending(db, year, mo)
     total_spent     = get_total_expenses(db, year, mo)
     total_income    = get_total_income(db, year, mo)
-    total_budgeted  = sum(row.monthly_budget or 0 for row in spending)
+    total_budgeted  = db.query(func.sum(Category.monthly_budget))        .filter(Category.is_income == False)        .scalar() or 0
     total_remaining = total_budgeted - abs(total_spent)
     net_total       = total_income + total_spent  # total_spent is negative
 
@@ -457,7 +457,7 @@ def budget_page(request: Request, db: Session = Depends(get_db), month: Optional
             "pct_used":  None,
         })
 
-    total_budgeted  = sum(r["budgeted"] for r in expense_rows if r["category"] != "Unassigned")
+    total_budgeted  = db.query(func.sum(Category.monthly_budget)).filter(Category.is_income == False).scalar() or 0
     total_spent     = abs(get_total_expenses(db, year, mo))
     total_remaining = total_budgeted - total_spent
     total_income    = get_total_income(db, year, mo)
@@ -494,12 +494,14 @@ def budget_manage_page(
 ):
     """Render the budget management page for editing category budget amounts."""
     categories = db.query(Category).order_by(Category.name).all()
-    total_budgeted = sum(c.monthly_budget or 0 for c in categories)
+    total_budgeted_expenses = sum(c.monthly_budget or 0 for c in categories if not c.is_income)
+    total_budgeted_income   = sum(c.monthly_budget or 0 for c in categories if c.is_income)
     return templates.TemplateResponse("budget_manage.html", {
         "request": request,
         "active_page": "budget",
         "categories": categories,
-        "total_budgeted": total_budgeted,
+        "total_budgeted_expenses": total_budgeted_expenses,
+        "total_budgeted_income":   total_budgeted_income,
         "uncategorized_count": get_uncategorized_count(db),
         "message": message,
     })
@@ -512,13 +514,22 @@ def categories_page(request: Request, db: Session = Depends(get_db), month: Opti
     selected_month = month or (available_months[-1]["value"] if available_months else get_current_month_str())
     year, mo = parse_month(selected_month)
 
-    spending = get_monthly_spending(db, year, mo)
-    total_spent = sum(row.total for row in spending)
+    spending     = get_monthly_spending(db, year, mo)
+    spent_by_cat = {row.category_name: row.total for row in spending}
+    total_spent  = sum(row.total for row in spending)
+
+    # All non-income categories — include zero-spend ones in the table
+    all_expense_cats = db.query(Category)        .filter(Category.is_income == False)        .order_by(Category.name).all()
 
     category_rows = []
-    for row in spending:
-        pct = (abs(row.total) / abs(total_spent) * 100) if total_spent else 0
-        category_rows.append({"category": row.category_name, "spent": row.total, "pct": pct})
+    for cat in all_expense_cats:
+        net   = spent_by_cat.get(cat.name, 0)
+        spent = -net if net < 0 else 0
+        pct   = (spent / abs(total_spent) * 100) if total_spent else 0
+        category_rows.append({"category": cat.name, "spent": spent, "pct": pct})
+
+    # Chart only includes categories with actual spending
+    chart_rows = [r for r in category_rows if r["spent"] > 0]
 
     return templates.TemplateResponse("categories.html", {
         "request": request,
@@ -527,9 +538,9 @@ def categories_page(request: Request, db: Session = Depends(get_db), month: Opti
         "selected_month": selected_month,
         "current_month_label": get_month_label(selected_month),
         "category_rows": category_rows,
-        "category_labels": [r["category"] for r in category_rows],
-        "category_values": [abs(r["spent"]) for r in category_rows],
-        "total_spent": total_spent,
+        "category_labels": [r["category"] for r in chart_rows],
+        "category_values": [r["spent"]    for r in chart_rows],
+        "total_spent": abs(total_spent),
         "uncategorized_count": get_uncategorized_count(db),
     })
 

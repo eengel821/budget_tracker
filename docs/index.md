@@ -3,13 +3,12 @@
 A personal budget tracking application built with Python, FastAPI, SQLite, and SQLAlchemy.
 
 ## TODO Task List
-- [X] Automatically exclude CC pmt transactions
 - [ ] change color of the exclude payments option from yellow to something easier to read
-- [ ] transactions page - better filters, sorting, collapse/expand
-- [ ] Budget Page - not all expenses are shown, only ones that have a non-zero budgeted value, but it means i can't see when i spend on a category with no budget. Also would like to see the budget totals for expenses, income and net
-- [X] manage categories - would be nice to edit a category title and fix on the DB for all associated transactions
+- [ ] Dashboard - maybe have a year in review look where i see how each month looked relative to the budget?
+- [ ] Budget - would like to further group expenses that don't have a budgeted amount and indicate that the expectation is that i need to reimburse my account from savings.
+- [ ] create an upload UI feature from the transaction page. browse a .csv, select which institution it's from, import then show me what it did.
+- [ ] docs - setup pipeline to build and deploy docs to github, update the docs, change link in nav bar to open a new tab to the github doc page instead
 - [ ] verify with a new import for all of february. make sure i don't get dupes and nothing gets missed
-- [ ] add a text based keyword filter on the transactions page
 - [ ] more testing and doc strings
 - [ ] github testing pipelines
 - [ ] deployment?

@@ -20,6 +20,30 @@
 
     <!-- Custom styles -->
     <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body.dark-mode { background:#1a1a2e !important; color:#e0e0e0 !important; }
+        body.dark-mode .navbar.bg-dark { background:#0f0f1a !important; }
+        body.dark-mode .card { background:#22223b !important; border-color:#333 !important; color:#e0e0e0 !important; }
+        body.dark-mode .card-header { background:#2a2a45 !important; border-color:#444 !important; color:#e0e0e0 !important; }
+        body.dark-mode .card-footer { background:#2a2a45 !important; border-color:#444 !important; }
+        body.dark-mode .table { color:#e0e0e0 !important; }
+        body.dark-mode .table-hover tbody tr:hover { background:#2e2e4a !important; }
+        body.dark-mode .table-light { background:#2a2a45 !important; color:#e0e0e0 !important; }
+        body.dark-mode .table thead th { background:#2a2a45 !important; color:#aaa !important; }
+        body.dark-mode .form-select, body.dark-mode .form-control { background:#2a2a45 !important; color:#e0e0e0 !important; border-color:#555 !important; }
+        body.dark-mode .btn-outline-secondary { color:#aaa !important; border-color:#666 !important; }
+        body.dark-mode .btn-outline-secondary:hover { background:#444 !important; }
+        body.dark-mode .stat-card { background:#2a2a45 !important; color:#e0e0e0 !important; }
+        body.dark-mode .dropdown-menu { background:#22223b !important; border-color:#444 !important; }
+        body.dark-mode .dropdown-item { color:#e0e0e0 !important; }
+        body.dark-mode .dropdown-item:hover { background:#2e2e4a !important; }
+        body.dark-mode .alert { background:#2a2a45 !important; border-color:#555 !important; color:#e0e0e0 !important; }
+        body.dark-mode .badge.bg-light { background:#444 !important; color:#e0e0e0 !important; }
+        body.dark-mode .text-muted { color:#aaa !important; }
+        body.dark-mode .table-secondary { background:#2e2e4a !important; }
+        body.dark-mode input[type="date"] { color-scheme: dark; }
+        #dark-toggle i { font-size: 1rem; }
+    </style>
 </head>
 <body>
 
@@ -68,9 +92,30 @@
                         </a>
                     </li>
                 </ul>
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <button id="dark-toggle" class="btn btn-link nav-link" onclick="toggleDark()" title="Toggle dark mode">
+                            <i class="bi bi-moon-fill" id="dark-icon"></i>
+                        </button>
+                    </li>
+                </ul>
             </div>
         </div>
     </nav>
+    <script>
+        function toggleDark() {
+            const dark = document.body.classList.toggle("dark-mode");
+            document.getElementById("dark-icon").className = dark ? "bi bi-sun-fill" : "bi bi-moon-fill";
+            localStorage.setItem("darkMode", dark ? "1" : "0");
+        }
+        if (localStorage.getItem("darkMode") === "1") {
+            document.body.classList.add("dark-mode");
+            document.addEventListener("DOMContentLoaded", () => {
+                const icon = document.getElementById("dark-icon");
+                if (icon) icon.className = "bi bi-sun-fill";
+            });
+        }
+    </script>
 
     <!-- Flash messages -->
     {% if message %}

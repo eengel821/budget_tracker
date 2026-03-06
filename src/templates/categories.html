@@ -57,16 +57,20 @@
                         </thead>
                         <tbody>
                             {% for row in category_rows %}
-                            <tr>
-                                <td class="fw-semibold">{{ row.category }}</td>
-                                <td class="text-end amount-debit">${{ "%.2f"|format(row.spent|abs) }}</td>
-                                <td class="text-end text-muted">{{ "%.1f"|format(row.pct) }}%</td>
+                            <tr {% if row.spent == 0 %}class="text-muted"{% endif %}>
+                                <td class="fw-semibold {% if row.spent == 0 %}text-muted{% endif %}">{{ row.category }}</td>
+                                <td class="text-end {% if row.spent > 0 %}amount-debit{% else %}text-muted{% endif %}">
+                                    {% if row.spent > 0 %}-${{ "%.2f"|format(row.spent) }}{% else %}&mdash;{% endif %}
+                                </td>
+                                <td class="text-end text-muted">{{ "%.1f"|format(row.pct) if row.pct > 0 else "—" }}{% if row.pct > 0 %}%{% endif %}</td>
                                 <td style="min-width: 120px;">
+                                    {% if row.spent > 0 %}
                                     <div class="progress">
                                         <div class="progress-bar bg-primary"
                                              style="width: {{ row.pct }}%">
                                         </div>
                                     </div>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% endfor %}
@@ -75,7 +79,7 @@
                             <tr>
                                 <td class="fw-bold">Total</td>
                                 <td class="text-end fw-bold amount-debit">
-                                    ${{ "%.2f"|format(total_spent|abs) }}
+                                    -${{ "%.2f"|format(total_spent) }}
                                 </td>
                                 <td class="text-end fw-bold">100%</td>
                                 <td></td>

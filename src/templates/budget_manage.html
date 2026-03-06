@@ -133,10 +133,16 @@
         </div>
     </div>
     <div class="card-footer d-flex justify-content-between align-items-center">
-        <small class="text-muted">
-            Total monthly budget:
-            <strong>${{ "%.2f"|format(total_budgeted) }}</strong>
-        </small>
+        <div class="d-flex gap-4">
+            <small class="text-muted">
+                Budgeted Expenses:
+                <strong class="amount-debit">${{ "%.2f"|format(total_budgeted_expenses) }}</strong>
+            </small>
+            <small class="text-muted">
+                Budgeted Income:
+                <strong class="amount-credit">${{ "%.2f"|format(total_budgeted_income) }}</strong>
+            </small>
+        </div>
         <button class="btn btn-primary btn-sm" onclick="saveAll()">
             <i class="bi bi-save me-1"></i>Save All
         </button>
@@ -360,11 +366,25 @@
     }
 
     function updateTotal() {
-        const inputs = document.querySelectorAll("input[id^='budget-']");
-        let total = 0;
-        inputs.forEach(input => total += parseFloat(input.value) || 0);
-        const totalEl = document.querySelector(".card-footer strong");
-        if (totalEl) totalEl.textContent = "$" + total.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        let expenseTotal = 0;
+        let incomeTotal  = 0;
+        document.querySelectorAll("input[id^='budget-']").forEach(input => {
+            const rowId   = input.id.replace("budget-", "");
+            const incomeToggle = document.getElementById("income-" + rowId);
+            const amount  = parseFloat(input.value) || 0;
+            if (incomeToggle && incomeToggle.checked) {
+                incomeTotal  += amount;
+            } else {
+                expenseTotal += amount;
+            }
+        });
+        const fmt = n => "$" + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        const expEl = document.querySelector(".amount-debit.fw-bold, .card-footer .amount-debit strong");
+        const incEl = document.querySelector(".amount-credit.fw-bold, .card-footer .amount-credit strong");
+        // Simpler: just grab both strongs in the footer by order
+        const strongs = document.querySelectorAll(".card-footer strong");
+        if (strongs[0]) strongs[0].textContent = fmt(expenseTotal);
+        if (strongs[1]) strongs[1].textContent = fmt(incomeTotal);
     }
 </script>
 {% endblock %}

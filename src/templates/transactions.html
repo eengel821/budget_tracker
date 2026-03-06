@@ -184,6 +184,9 @@
                                 title="Click to change category"
                                 onclick="editField('cat', {{ t.id }}, this)">
                                 {{ t.category.name if t.category else 'Uncategorized' }}
+                                {% if t.category and t.category.is_income %}
+                                <span class="badge bg-success ms-1" style="font-size:0.6rem;" title="Income category">INC</span>
+                                {% endif %}
                             </span>
                             <select
                                 id="cat-input-{{ t.id }}"
@@ -229,9 +232,6 @@
                         <td class="text-end align-middle {% if t.amount < 0 %}amount-debit{% else %}amount-credit{% endif %}"
                             data-val="{{ t.amount }}">
                             ${{ "%.2f"|format(t.amount|abs) }}
-                            {% if t.category and t.category.is_income %}
-                            <span class="badge bg-success ms-1" style="font-size:0.65rem;" title="Income category">INC</span>
-                            {% endif %}
                         </td>
 
                         <!-- Actions menu -->
