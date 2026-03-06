@@ -24,3 +24,9 @@ __pycache__/
 # Windows
 Thumbs.db
 desktop.ini
+
+# Personal data files - keep local only
+exclude_keywords.json
+categories.json
+keywords.json
+seed_budgets.py

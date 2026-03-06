@@ -1,0 +1,8 @@
+{
+    "description": "Transactions matching these keywords will be automatically excluded from reports. Typically used for credit card payments that appear in both the credit card account and the bank account, which would cause double-counting.",
+    "exclude_keywords": [
+        "BANK NAME 1",
+        "CC NAME 1",
+        "BANK NAME 2"
+    ]
+}

@@ -1,0 +1,329 @@
+{
+    "keywords": [
+        {
+            "keyword": "DIRECT DEPOSIT",
+            "category": "Income",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "TITHE",
+            "category": "Tithe/Charity",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "DONATION",
+            "category": "Tithe/Charity",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "MORTGAGE",
+            "category": "Mortgage",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "COMCAST",
+            "category": "Internet",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "XFINITY",
+            "category": "Internet",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "STATE FARM",
+            "category": "Auto + Home Insurance",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "GEICO",
+            "category": "Auto + Home Insurance",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "ALLSTATE",
+            "category": "Auto + Home Insurance",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "SHELL",
+            "category": "Gas",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "CHEVRON",
+            "category": "Gas",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "ARCO",
+            "category": "Gas",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "76 GAS",
+            "category": "Gas",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "EXXON",
+            "category": "Gas",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "STARBUCKS",
+            "category": "Coffee Shops",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "DUTCH BROS",
+            "category": "Coffee Shops",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "COFFEE",
+            "category": "Coffee Shops",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "NETFLIX",
+            "category": "Subscription",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "SPOTIFY",
+            "category": "Subscription",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "HULU",
+            "category": "Subscription",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "DISNEY",
+            "category": "Subscription",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "AMAZON PRIME",
+            "category": "Subscription",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "APPLE.COM/BILL",
+            "category": "Subscription",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "GOOGLE",
+            "category": "Subscription",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "WHOLEFDS",
+            "category": "Groceries",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "WHOLE FOODS",
+            "category": "Groceries",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "SAFEWAY",
+            "category": "Groceries",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "KROGER",
+            "category": "Groceries",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "TRADER JOE",
+            "category": "Groceries",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "COSTCO",
+            "category": "Groceries",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "FRED MEYER",
+            "category": "Groceries",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "QFC",
+            "category": "Groceries",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "GROCERY OUTLET",
+            "category": "Groceries",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "RESTAURANT",
+            "category": "Restaurants",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "MCDONALD",
+            "category": "Restaurants",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "CHIPOTLE",
+            "category": "Restaurants",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "SUBWAY",
+            "category": "Restaurants",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "DOORDASH",
+            "category": "Restaurants",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "UBER EATS",
+            "category": "Restaurants",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "TST*",
+            "category": "Restaurants",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "T-MOBILE",
+            "category": "Phones",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "VERIZON",
+            "category": "Phones",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "AT&T",
+            "category": "Phones",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "PUGET SOUND ENERGY",
+            "category": "Electric",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "PSE",
+            "category": "Electric",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "CITY OF",
+            "category": "Water/Sewer/Garbage",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "WASTE MANAGEMENT",
+            "category": "Water/Sewer/Garbage",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "SDOT",
+            "category": "Transportation",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "PARKING",
+            "category": "Leisure",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "AMAZON",
+            "category": "Home Supplies",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "TARGET",
+            "category": "Home Supplies",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "WALMART",
+            "category": "Home Supplies",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "HOME DEPOT",
+            "category": "Home Improvements",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "LOWES",
+            "category": "Home Improvements",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "AIRBNB",
+            "category": "Vacation Travel",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "HOTEL",
+            "category": "Vacation Travel",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "EXPEDIA",
+            "category": "Vacation Travel",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "SOUTHWEST",
+            "category": "Vacation Travel",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "DELTA",
+            "category": "Vacation Travel",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "UNITED AIRLINES",
+            "category": "Vacation Travel",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "DOCTOR",
+            "category": "Doctor",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "CLINIC",
+            "category": "Doctor",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "PHARMACY",
+            "category": "Doctor",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "CVS",
+            "category": "Doctor",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "WALGREENS",
+            "category": "Doctor",
+            "match_type": "contains"
+        }
+    ]
+}
