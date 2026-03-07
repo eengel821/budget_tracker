@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Optional
 import sys
 
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -29,6 +29,7 @@ if str(src_path) not in sys.path:
 from database import init_db, get_db
 from models import Transaction, Category, Account
 from categorizer import categorize_all_uncategorized
+from import_transactions import import_csv, load_formats, load_exclude_keywords
 
 
 # ── App setup ────────────────────────────────────────────────────────────────
@@ -628,6 +629,126 @@ def delete_transaction(
     db.commit()
 
     return {"message": f"Transaction {transaction_id} deleted"}
+
+
+@app.post("/api/import")
+async def import_transactions_endpoint(
+    file: UploadFile = File(...),
+    bank: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Accept a CSV file upload and import transactions for the given bank.
+    Returns a JSON summary: imported, auto_excluded, duplicates_skipped, skipped.
+    """
+    if not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only CSV files are supported")
+
+    # Load formats from project root
+    formats_path = src_path.parent / "formats.json"
+    if not formats_path.exists():
+        raise HTTPException(status_code=500, detail="formats.json not found on server")
+
+    import json, tempfile, os
+    with open(formats_path) as f:
+        formats = json.load(f)
+
+    if bank not in formats:
+        raise HTTPException(status_code=400, detail=f"Unknown bank '{bank}'. Available: {', '.join(formats.keys())}")
+
+    # Write upload to a temp file so import_csv can read it
+    contents = await file.read()
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp:
+        tmp.write(contents)
+        tmp_path = Path(tmp.name)
+
+    try:
+        fmt         = formats[bank]
+        exclude_kws = load_exclude_keywords()
+
+        import csv as csvlib
+        from datetime import datetime as dt
+
+        def parse_amount_inline(row):
+            if fmt["amount_col"]:
+                return float(row[fmt["amount_col"]])
+            else:
+                debit  = row[fmt["debit_col"]].strip()
+                credit = row[fmt["credit_col"]].strip()
+                if debit:  return -abs(float(debit))
+                if credit: return  abs(float(credit))
+                return 0.0
+
+        def parse_date_inline(row):
+            return dt.strptime(row[fmt["date_col"]].strip(), fmt["date_format"]).date()
+
+        # Get or create account
+        from models import Account
+        account = db.query(Account).filter(Account.name == bank).first()
+        if not account:
+            account = Account(name=bank, type="imported")
+            db.add(account)
+            db.commit()
+            db.refresh(account)
+
+        imported = skipped = auto_excluded = duplicates_skipped = 0
+
+        with open(tmp_path, newline="", encoding="utf-8-sig") as csvfile:
+            reader = csvlib.DictReader(csvfile)
+            reader.fieldnames = [f.strip().strip('"') for f in reader.fieldnames]
+
+            for row in reader:
+                row = {k: v.strip().strip('"') for k, v in row.items()}
+                if not row.get(fmt["date_col"], "").strip():
+                    skipped += 1
+                    continue
+                try:
+                    txn_date   = parse_date_inline(row)
+                    amount     = parse_amount_inline(row)
+                    desc       = row[fmt["description_col"]].strip()
+                    cat_note   = row.get(fmt.get("category_col") or "", "").strip()
+                except (ValueError, KeyError):
+                    skipped += 1
+                    continue
+
+                # Duplicate check
+                exists = db.query(Transaction).filter(
+                    Transaction.date        == txn_date,
+                    Transaction.amount      == amount,
+                    Transaction.description == desc,
+                ).first()
+                if exists:
+                    duplicates_skipped += 1
+                    continue
+
+                txn = Transaction(
+                    date        = txn_date,
+                    amount      = amount,
+                    description = desc,
+                    notes       = cat_note,
+                    account_id  = account.id,
+                )
+                if any(kw in desc.upper() for kw in exclude_kws):
+                    txn.excluded  = True
+                    auto_excluded += 1
+
+                db.add(txn)
+                imported += 1
+
+        db.commit()
+
+    finally:
+        os.unlink(tmp_path)
+
+    uncategorized = get_uncategorized_count(db)
+
+    return {
+        "imported":           imported,
+        "auto_excluded":      auto_excluded,
+        "duplicates_skipped": duplicates_skipped,
+        "skipped":            skipped,
+        "uncategorized_count": uncategorized,
+    }
 
 
 @app.post("/categorize-all")

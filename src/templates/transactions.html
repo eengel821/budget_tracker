@@ -25,6 +25,126 @@
             class="btn btn-sm btn-outline-success">
             <i class="bi bi-download me-1"></i>Download CSV
         </a>
+        <button class="btn btn-sm btn-primary" type="button"
+            data-bs-toggle="offcanvas" data-bs-target="#importDrawer">
+            <i class="bi bi-upload me-1"></i>Import CSV
+        </button>
+    </div>
+</div>
+
+<!-- ── Import offcanvas drawer ───────────────────────────────────────────── -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="importDrawer"
+     style="width: 420px;">
+    <div class="offcanvas-header border-bottom">
+        <h5 class="offcanvas-title fw-bold">
+            <i class="bi bi-upload me-2 text-primary"></i>Import Transactions
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body d-flex flex-column">
+
+        <!-- Form -->
+        <div id="import-form-section">
+            <p class="text-muted small mb-4">
+                Select your bank and upload a CSV export. Duplicates are skipped automatically.
+            </p>
+
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Institution</label>
+                <select id="import-bank" class="form-select">
+                    <option value="" disabled selected>Select your bank…</option>
+                    <option value="chase">Chase</option>
+                    <option value="capitalone">Capital One</option>
+                    <option value="becu">BECU</option>
+                    <option value="discover">Discover</option>
+                </select>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label fw-semibold">CSV File</label>
+                <div id="drop-zone"
+                     class="border border-2 border-dashed rounded p-4 text-center"
+                     style="cursor:pointer; border-color:#dee2e6 !important; transition: border-color 0.2s;"
+                     onclick="document.getElementById('import-file').click()"
+                     ondragover="event.preventDefault(); this.style.borderColor='#0d6efd';"
+                     ondragleave="this.style.borderColor='#dee2e6';"
+                     ondrop="handleDrop(event)">
+                    <i class="bi bi-file-earmark-arrow-up fs-2 text-muted"></i>
+                    <div class="text-muted small mt-2" id="drop-label">
+                        Drag &amp; drop or <span class="text-primary">browse</span>
+                    </div>
+                </div>
+                <input type="file" id="import-file" accept=".csv,.CSV,text/csv" class="d-none"
+                       onchange="handleFileSelect(this.files[0])">
+            </div>
+
+            <button id="import-btn" class="btn btn-primary w-100" onclick="runImport()" disabled>
+                <i class="bi bi-upload me-2"></i>Import
+            </button>
+        </div>
+
+        <!-- Spinner -->
+        <div id="import-loading" class="d-none flex-column align-items-center justify-content-center flex-grow-1 text-center">
+            <div class="spinner-border text-primary mb-3" role="status"></div>
+            <div class="text-muted">Importing transactions…</div>
+        </div>
+
+        <!-- Result summary -->
+        <div id="import-result" class="d-none flex-column flex-grow-1">
+            <div class="alert alert-success d-flex align-items-center gap-2 mb-4">
+                <i class="bi bi-check-circle-fill fs-5"></i>
+                <span class="fw-semibold">Import Complete</span>
+            </div>
+            <div class="card mb-4">
+                <div class="card-body p-0">
+                    <table class="table mb-0">
+                        <tbody>
+                            <tr>
+                                <td class="text-muted">Imported</td>
+                                <td class="text-end fw-bold amount-credit" id="res-imported">—</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Auto-excluded</td>
+                                <td class="text-end fw-bold text-warning" id="res-excluded">—</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Duplicates skipped</td>
+                                <td class="text-end fw-bold text-muted" id="res-dupes">—</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Rows skipped</td>
+                                <td class="text-end fw-bold text-muted" id="res-skipped">—</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <a id="review-btn" href="/review"
+               class="btn btn-success w-100 mb-3">
+                <i class="bi bi-tags me-2"></i>Go to Review Queue
+                <span id="res-review-count" class="badge bg-white text-success ms-2"></span>
+            </a>
+
+            <button class="btn btn-outline-secondary w-100" onclick="resetImport()">
+                <i class="bi bi-arrow-repeat me-2"></i>Import Another File
+            </button>
+        </div>
+
+        <!-- Error -->
+        <div id="import-error" class="d-none mt-3">
+            <div class="alert alert-danger d-flex align-items-start gap-2">
+                <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+                <div>
+                    <div class="fw-semibold">Import Failed</div>
+                    <div class="small" id="import-error-msg"></div>
+                </div>
+            </div>
+            <button class="btn btn-outline-secondary w-100" onclick="resetImport()">
+                <i class="bi bi-arrow-repeat me-2"></i>Try Again
+            </button>
+        </div>
+
     </div>
 </div>
 
@@ -541,6 +661,96 @@
         row.style.transition = "opacity 0.3s";
         row.style.opacity    = "0";
         setTimeout(() => row.remove(), 300);
+    }
+</script>
+
+<script>
+    let selectedFile = null;
+
+    function handleFileSelect(file) {
+        if (!file) return;
+        selectedFile = file;
+        document.getElementById('drop-label').innerHTML =
+            `<i class="bi bi-file-earmark-check text-success me-1"></i><strong>${file.name}</strong>`;
+        document.getElementById('drop-zone').style.borderColor = '#198754';
+        updateImportBtn();
+    }
+
+    function handleDrop(e) {
+        e.preventDefault();
+        document.getElementById('drop-zone').style.borderColor = '#dee2e6';
+        const file = e.dataTransfer.files[0];
+        if (file) {
+            document.getElementById('import-file').files = e.dataTransfer.files;
+            handleFileSelect(file);
+        }
+    }
+
+    function updateImportBtn() {
+        const bank = document.getElementById('import-bank').value;
+        const btn  = document.getElementById('import-btn');
+        btn.disabled = !(bank && selectedFile);
+    }
+
+    document.getElementById('import-bank').addEventListener('change', updateImportBtn);
+
+    async function runImport() {
+        const bank = document.getElementById('import-bank').value;
+        if (!bank || !selectedFile) return;
+
+        // Show spinner
+        document.getElementById('import-form-section').classList.add('d-none');
+        document.getElementById('import-loading').classList.remove('d-none');
+        document.getElementById('import-loading').classList.add('d-flex');
+        document.getElementById('import-error').classList.add('d-none');
+
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('bank', bank);
+
+        try {
+            const resp = await fetch('/api/import', { method: 'POST', body: formData });
+            const data = await resp.json();
+
+            if (!resp.ok) {
+                throw new Error(data.detail || 'Import failed');
+            }
+
+            // Populate result
+            document.getElementById('res-imported').textContent = data.imported;
+            document.getElementById('res-excluded').textContent = data.auto_excluded;
+            document.getElementById('res-dupes').textContent    = data.duplicates_skipped;
+            document.getElementById('res-skipped').textContent  = data.skipped;
+
+            const count = data.uncategorized_count;
+            document.getElementById('res-review-count').textContent = count > 0 ? count + ' to review' : '';
+
+            // Show result
+            document.getElementById('import-loading').classList.add('d-none');
+            document.getElementById('import-loading').classList.remove('d-flex');
+            document.getElementById('import-result').classList.remove('d-none');
+            document.getElementById('import-result').classList.add('d-flex');
+
+        } catch (err) {
+            document.getElementById('import-loading').classList.add('d-none');
+            document.getElementById('import-loading').classList.remove('d-flex');
+            document.getElementById('import-form-section').classList.remove('d-none');
+            document.getElementById('import-error').classList.remove('d-none');
+            document.getElementById('import-error-msg').textContent = err.message;
+        }
+    }
+
+    function resetImport() {
+        selectedFile = null;
+        document.getElementById('import-file').value = '';
+        document.getElementById('import-bank').value = '';
+        document.getElementById('drop-label').innerHTML = 'Drag &amp; drop or <span class="text-primary">browse</span>';
+        document.getElementById('drop-zone').style.borderColor = '#dee2e6';
+        document.getElementById('import-btn').disabled = true;
+        document.getElementById('import-form-section').classList.remove('d-none');
+        document.getElementById('import-result').classList.add('d-none');
+        document.getElementById('import-result').classList.remove('d-flex');
+        document.getElementById('import-error').classList.add('d-none');
     }
 </script>
 {% endblock %}
