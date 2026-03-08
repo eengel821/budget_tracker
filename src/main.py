@@ -458,11 +458,44 @@ def budget_page(request: Request, db: Session = Depends(get_db), month: Optional
             "pct_used":  None,
         })
 
-    total_budgeted  = db.query(func.sum(Category.monthly_budget)).filter(Category.is_income == False).scalar() or 0
-    total_spent     = abs(get_total_expenses(db, year, mo))
-    total_remaining = total_budgeted - total_spent
-    total_income    = get_total_income(db, year, mo)
-    net_total       = total_income - total_spent
+    # Split expense_rows into monthly (budget > 0) and savings (budget == 0)
+    monthly_rows = [r for r in expense_rows if r["category"] != "Unassigned" and r["budgeted"] > 0]
+    savings_rows_base = [r for r in expense_rows if r["category"] != "Unassigned" and r["budgeted"] == 0]
+
+    # For savings: always show ALL non-income zero-budget categories
+    all_savings_cats = db.query(Category)        .filter(Category.is_income == False, Category.monthly_budget == 0)        .order_by(Category.name).all()
+    savings_spent_map = {r["category"]: r["spent"] for r in savings_rows_base}
+    savings_rows = []
+    for cat in all_savings_cats:
+        spent = savings_spent_map.get(cat.name, 0)
+        savings_rows.append({
+            "id":       cat.id,
+            "category": cat.name,
+            "budgeted": 0,
+            "spent":    spent,
+        })
+
+    # Unassigned goes into monthly group
+    unassigned = next((r for r in expense_rows if r["category"] == "Unassigned"), None)
+    if unassigned:
+        monthly_rows.append(unassigned)
+
+    total_budgeted      = db.query(func.sum(Category.monthly_budget)).filter(Category.is_income == False).scalar() or 0
+    total_income        = get_total_income(db, year, mo)
+
+    # Use row sums so footer totals always match section subtotals
+    monthly_total_spent = sum(r["spent"] for r in monthly_rows)
+    savings_total_spent = sum(r["spent"] for r in savings_rows)
+    total_spent         = monthly_total_spent + savings_total_spent
+    total_remaining     = total_budgeted - total_spent  # budgeted minus all actual spending
+    net_total           = total_income - total_spent
+
+    # Chart data — monthly uses green/red, savings uses orange (no budget bar)
+    monthly_labels  = [r["category"] for r in monthly_rows]
+    monthly_budgets = [r["budgeted"]  for r in monthly_rows]
+    monthly_spent   = [r["spent"]     for r in monthly_rows]
+    savings_labels  = [r["category"]  for r in savings_rows if r["spent"] > 0]
+    savings_spent   = [r["spent"]     for r in savings_rows if r["spent"] > 0]
 
     return templates.TemplateResponse("budget.html", {
         "request": request,
@@ -470,20 +503,25 @@ def budget_page(request: Request, db: Session = Depends(get_db), month: Optional
         "available_months": available_months,
         "selected_month": selected_month,
         "current_month_label": get_month_label(selected_month),
-        "expense_rows":    expense_rows,
-        "income_rows":     income_rows,
-        "expense_labels":  [r["category"] for r in expense_rows],
-        "expense_budgets": [r["budgeted"]  for r in expense_rows],
-        "expense_spent":   [r["spent"]     for r in expense_rows],
-        "income_labels":   [r["category"]  for r in income_rows],
-        "income_budgets":  [r["budgeted"]  for r in income_rows],
-        "income_spent":    [r["spent"]     for r in income_rows],
-        "total_budgeted":  total_budgeted,
-        "total_spent":     total_spent,
-        "total_remaining": total_remaining,
-        "total_income":    total_income,
-        "net_total":       net_total,
-        "uncategorized_count": get_uncategorized_count(db),
+        "monthly_rows":         monthly_rows,
+        "savings_rows":         savings_rows,
+        "income_rows":          income_rows,
+        "monthly_labels":       monthly_labels,
+        "monthly_budgets":      monthly_budgets,
+        "monthly_spent":        monthly_spent,
+        "savings_labels":       savings_labels,
+        "savings_spent":        savings_spent,
+        "income_labels":        [r["category"] for r in income_rows],
+        "income_budgets":       [r["budgeted"]  for r in income_rows],
+        "income_spent":         [r["spent"]     for r in income_rows],
+        "total_budgeted":       total_budgeted,
+        "total_spent":          total_spent,
+        "total_remaining":      total_remaining,
+        "total_income":         total_income,
+        "net_total":            net_total,
+        "monthly_total_spent":  monthly_total_spent,
+        "savings_total_spent":  savings_total_spent,
+        "uncategorized_count":  get_uncategorized_count(db),
     })
 
 

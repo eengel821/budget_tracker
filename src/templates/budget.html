@@ -65,7 +65,7 @@
     </div>
 </div>
 
-<!-- ── Charts row: Income stat cards (left) + Expense bar chart (right) ──── -->
+<!-- ── Charts row ─────────────────────────────────────────────────────────── -->
 <div class="row g-4 mb-4">
 
     <!-- Income stat cards -->
@@ -131,7 +131,7 @@
         <div class="card h-100">
             <div class="card-header"><i class="bi bi-bar-chart me-2 text-danger"></i>Budget vs Actual by Category</div>
             <div class="card-body" style="position:relative; height:400px;">
-                {% if expense_rows %}
+                {% if monthly_rows or savings_rows %}
                 <canvas id="expenseChart"></canvas>
                 {% else %}
                 <div class="empty-state">
@@ -147,22 +147,28 @@
 
 <!-- ── Expense table ───────────────────────────────────────────────────────── -->
 <h5 class="fw-bold mb-3"><i class="bi bi-credit-card me-2 text-danger"></i>Expenses</h5>
-{% if expense_rows %}
+
+{% if monthly_rows or savings_rows %}
 <div class="card mb-4">
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-hover mb-0">
-                <thead>
+                <thead class="table-light">
                     <tr>
                         <th>Category</th>
                         <th class="text-end">Budgeted</th>
                         <th class="text-end">Spent</th>
-                        <th class="text-end">Remaining</th>
-                        <th style="min-width:150px;">Progress</th>
+                        <th class="text-end">Remaining / Reimburse</th>
+                        <th style="min-width:140px;">Progress</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for row in expense_rows %}
+
+                    <!-- ── Monthly Expenses ── -->
+                    <tr class="divider-monthly">
+                        <td colspan="5"><i class="bi bi-calendar3 me-2"></i>Monthly Expenses</td>
+                    </tr>
+                    {% for row in monthly_rows %}
                     {% set remaining = row.budgeted - row.spent %}
                     {% set pct = (row.spent / row.budgeted * 100) if row.budgeted > 0 else none %}
                     <tr>
@@ -177,40 +183,124 @@
                         </td>
                         <td>
                             {% if pct is not none %}
-                            <div class="progress" style="height:8px;">
+                            <div class="progress" style="height:7px;">
                                 <div class="progress-bar {% if pct >= 100 %}bg-danger{% elif pct >= 80 %}bg-warning{% else %}bg-success{% endif %}"
-                                    style="width: {{ [pct, 100]|min }}%"
-                                    title="{{ '%.0f'|format(pct) }}% used">
-                                </div>
+                                    style="width: {{ [pct, 100]|min }}%"></div>
                             </div>
                             <small class="text-muted">{{ "%.0f"|format(pct) }}% used</small>
                             {% else %}
-                            <div class="progress" style="height:8px;">
-                                <div class="progress-bar bg-danger" style="width:100%" title="Over budget — no budget set"></div>
+                            <div class="progress" style="height:7px;">
+                                <div class="progress-bar bg-danger" style="width:100%"></div>
                             </div>
                             <small class="text-muted fst-italic">no budget set</small>
                             {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
-                </tbody>
-                <tfoot class="table-light fw-semibold">
-                    <tr>
-                        <td>Total Expenses</td>
+                    <!-- Monthly subtotal -->
+                    <tr class="subtotal-row">
+                        <td>Monthly Total</td>
                         <td class="text-end text-muted">${{ "%.2f"|format(total_budgeted) }}</td>
-                        <td class="text-end amount-debit">${{ "%.2f"|format(total_spent) }}</td>
-                        <td class="text-end {% if total_remaining >= 0 %}budget-under{% else %}budget-over{% endif %}">
-                            {% if total_remaining < 0 %}-{% endif %}${{ "%.2f"|format(total_remaining|abs) }}
+                        <td class="text-end amount-debit">${{ "%.2f"|format(monthly_total_spent) }}</td>
+                        <td class="text-end {% if total_budgeted - monthly_total_spent >= 0 %}budget-under{% else %}budget-over{% endif %}">
+                            {% set mr = total_budgeted - monthly_total_spent %}
+                            {% if mr < 0 %}-${{ "%.2f"|format(mr|abs) }}{% else %}${{ "%.2f"|format(mr) }}{% endif %}
                         </td>
                         <td></td>
                     </tr>
-                    <tr class="fw-bold">
-                        <td>Net Total</td>
-                        <td></td>
-                        <td class="text-end {% if net_total >= 0 %}amount-credit{% else %}amount-debit{% endif %}">
-                            {% if net_total >= 0 %}+{% else %}-{% endif %}${{ "%.2f"|format(net_total|abs) }}
+
+                    <!-- ── Expenses from Savings ── -->
+                    <tr class="divider-savings">
+                        <td colspan="5"><i class="bi bi-piggy-bank me-2"></i>Expenses from Savings</td>
+                    </tr>
+                    {% for row in savings_rows %}
+                    <tr class="savings-row">
+                        <td class="fw-semibold {% if row.spent == 0 %}text-muted{% endif %}">{{ row.category }}</td>
+                        <td class="text-end text-muted">$0.00</td>
+                        <td class="text-end {% if row.spent > 0 %}amount-debit{% else %}text-muted{% endif %}">
+                            ${{ "%.2f"|format(row.spent) }}
+                        </td>
+                        <td class="text-end">
+                            {% if row.spent > 0 %}
+                            <span class="badge-reimburse">
+                                <i class="bi bi-arrow-left-right me-1"></i>Reimburse ${{ "%.2f"|format(row.spent) }}
+                            </span>
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if row.spent > 0 %}
+                            <div class="progress" style="height:7px;">
+                                <div class="progress-bar bg-danger" style="width:100%"></div>
+                            </div>
+                            <small class="text-muted fst-italic">no budget set</small>
+                            {% else %}
+                            <small class="text-muted fst-italic">no activity</small>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    <!-- Savings subtotal -->
+                    <tr class="savings-row subtotal-row">
+                        <td>Savings Total</td>
+                        <td class="text-end text-muted">$0.00</td>
+                        <td class="text-end {% if savings_total_spent > 0 %}amount-debit{% else %}text-muted{% endif %}">
+                            ${{ "%.2f"|format(savings_total_spent) }}
+                        </td>
+                        <td class="text-end">
+                            {% if savings_total_spent > 0 %}
+                            <span class="badge-reimburse">
+                                <i class="bi bi-arrow-left-right me-1"></i>Reimburse ${{ "%.2f"|format(savings_total_spent) }}
+                            </span>
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
                         </td>
                         <td></td>
+                    </tr>
+
+                </tbody>
+                <tfoot>
+                    <!-- Row 1: Expense performance vs budget -->
+                    <tr class="footer-expenses">
+                        <td><i class="bi bi-credit-card me-2 text-danger"></i>Total Expenses</td>
+                        <td class="text-end">
+                            <span class="col-label">Budgeted</span>
+                            ${{ "%.2f"|format(total_budgeted) }}
+                        </td>
+                        <td class="text-end">
+                            <span class="col-label">Actual</span>
+                            <span class="amount-debit">${{ "%.2f"|format(total_spent) }}</span>
+                        </td>
+                        <td class="text-end">
+                            <span class="col-label">Difference</span>
+                            <span class="{% if total_remaining >= 0 %}budget-under{% else %}budget-over{% endif %}">
+                                {% if total_remaining < 0 %}-{% endif %}${{ "%.2f"|format(total_remaining|abs) }}
+                            </span>
+                        </td>
+                        <td></td>
+                    </tr>
+                    <!-- Row 2: Net cash flow -->
+                    <tr class="footer-net">
+                        <td>
+                            <i class="bi bi-arrow-left-right me-2"></i>Net Cash Flow
+                            <span class="label-sub">income minus all expenses</span>
+                        </td>
+                        <td class="text-end">
+                            <span class="col-label">Income</span>
+                            +${{ "%.2f"|format(total_income) }}
+                        </td>
+                        <td class="text-end">
+                            <span class="col-label">Expenses</span>
+                            -${{ "%.2f"|format(total_spent) }}
+                        </td>
+                        <td class="text-end">
+                            <span class="col-label">Net</span>
+                            <span style="color:{% if net_total >= 0 %}#6ee7b7{% else %}#fca5a5{% endif %}; font-size:1.05rem;">
+                                {% if net_total >= 0 %}+{% else %}-{% endif %}${{ "%.2f"|format(net_total|abs) }}
+                            </span>
+                        </td>
                         <td></td>
                     </tr>
                 </tfoot>
@@ -219,44 +309,146 @@
     </div>
 </div>
 {% else %}
-<div class="alert alert-info">No expense categories with activity this month.</div>
+<div class="alert alert-info">No expense categories found.</div>
 {% endif %}
 
 {% endblock %}
 
 {% block scripts %}
+<style>
+    .divider-monthly td {
+        background: #eef2ff; color: #4338ca; font-weight: 700;
+        font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em;
+        padding: 0.5rem 0.75rem; border-top: 2px solid #c7d2fe; border-bottom: 1px solid #c7d2fe;
+    }
+    .divider-savings td {
+        background: #fdf2e9; color: #92400e; font-weight: 700;
+        font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em;
+        padding: 0.5rem 0.75rem; border-top: 2px solid #fcd9a0; border-bottom: 1px solid #fcd9a0;
+    }
+    .savings-row { background: #fffcf5; }
+    .savings-row:hover { background: #fff8ec !important; }
+    .table tbody tr.subtotal-row td { background-color: #f3f4f6 !important; font-weight: 600; font-size: 0.85rem; border-top: 1px solid #e5e7eb; }
+    .table tbody tr.subtotal-row.savings-row td { background-color: #f0ede4 !important; }
+    .table-hover tbody tr.subtotal-row:hover td { background-color: #e9e9e9 !important; }
+    .table-hover tbody tr.subtotal-row.savings-row:hover td { background-color: #e8e0d0 !important; }
+    .footer-expenses td {
+        background: #e9ecef; font-weight: 600; font-size: 0.88rem;
+        border-top: 2px solid #ced4da;
+    }
+    .footer-net td {
+        background: #312e81; color: #fff; font-weight: 700;
+        font-size: 0.88rem; border-top: 3px solid #1e1b4b;
+    }
+    .footer-net .label-sub {
+        font-size: 0.72rem; font-weight: 400; opacity: 0.75; display: block;
+    }
+    .footer-net .col-label {
+        font-size: 0.7rem; font-weight: 500; opacity: 0.65; display: block; margin-bottom: 1px;
+    }
+    .footer-expenses .col-label {
+        font-size: 0.7rem; font-weight: 500; color: #6c757d; display: block; margin-bottom: 1px;
+    }
+    .badge-reimburse {
+        background: #fee2e2; color: #991b1b; font-size: 0.75rem; font-weight: 600;
+        padding: 0.25rem 0.6rem; border-radius: 20px; white-space: nowrap; display: inline-block;
+    }
+</style>
 <script>
-    {% if expense_rows %}
+    {% if monthly_rows or savings_labels %}
+    const monthlyLabels  = {{ monthly_labels  | tojson }};
+    const monthlyBudgets = {{ monthly_budgets | tojson }};
+    const monthlySpent   = {{ monthly_spent   | tojson }};
+    const savingsLabels  = {{ savings_labels  | tojson }};
+    const savingsSpent   = {{ savings_spent   | tojson }};
+
+    const allLabels = [...monthlyLabels, ...savingsLabels];
+    const nMonthly  = monthlyLabels.length;
+
+    // Budgeted bar: green for monthly, transparent for savings
+    const budgetColors = [
+        ...Array(nMonthly).fill('rgba(28, 200, 138, 0.65)'),
+        ...Array(savingsLabels.length).fill('rgba(0,0,0,0)'),
+    ];
+    // Spent bars: red for monthly, orange for savings
+    const spentMonthly = [...monthlySpent, ...Array(savingsLabels.length).fill(null)];
+    const spentSavings = [...Array(nMonthly).fill(null), ...savingsSpent];
+
     new Chart(document.getElementById("expenseChart"), {
         type: "bar",
         data: {
-            labels: {{ expense_labels | tojson }},
+            labels: allLabels,
             datasets: [
                 {
                     label: "Budgeted",
-                    data: {{ expense_budgets | tojson }},
-                    backgroundColor: "rgba(28, 200, 138, 0.6)",
+                    data: [...monthlyBudgets, ...Array(savingsLabels.length).fill(0)],
+                    backgroundColor: budgetColors,
                     borderRadius: 4,
+                    order: 2,
                 },
                 {
-                    label: "Spent",
-                    data: {{ expense_spent | tojson }},
-                    backgroundColor: "rgba(231, 74, 59, 0.7)",
+                    label: "Spent (monthly)",
+                    data: spentMonthly,
+                    backgroundColor: "rgba(231, 74, 59, 0.75)",
                     borderRadius: 4,
-                }
+                    order: 1,
+                },
+                {
+                    label: "Spent (from savings)",
+                    data: spentSavings,
+                    backgroundColor: "rgba(234, 130, 50, 0.85)",
+                    borderRadius: 4,
+                    order: 1,
+                },
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { position: "top" } },
+            plugins: {
+                legend: { position: "top" },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ctx.parsed.y != null ? ` $${ctx.parsed.y.toLocaleString()}` : ''
+                    }
+                }
+            },
             scales: {
+                x: {
+                    ticks: {
+                        color: ctx => ctx.index >= nMonthly ? '#92400e' : '#4338ca',
+                        font: { weight: ctx => ctx.index >= nMonthly ? '600' : '400' }
+                    }
+                },
                 y: {
                     beginAtZero: true,
                     ticks: { callback: val => "$" + val.toLocaleString() }
                 }
             }
-        }
+        },
+        plugins: [{
+            id: 'groupDivider',
+            afterDraw(chart) {
+                if (nMonthly === 0 || savingsLabels.length === 0) return;
+                const { ctx, chartArea, scales } = chart;
+                const x = scales.x.getPixelForValue(nMonthly - 0.5);
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(x, chartArea.top);
+                ctx.lineTo(x, chartArea.bottom);
+                ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([5, 4]);
+                ctx.stroke();
+                ctx.font = '600 11px sans-serif';
+                ctx.fillStyle = '#4338ca';
+                ctx.textAlign = 'center';
+                ctx.fillText('Monthly', (chartArea.left + x) / 2, chartArea.top + 14);
+                ctx.fillStyle = '#92400e';
+                ctx.fillText('From Savings', (x + chartArea.right) / 2, chartArea.top + 14);
+                ctx.restore();
+            }
+        }]
     });
     {% endif %}
 </script>
