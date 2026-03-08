@@ -6,137 +6,333 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h4 class="mb-0 fw-bold">Category Breakdown</h4>
-        <small class="text-muted">{{ current_month_label }}</small>
+        <h4 class="mb-0 fw-bold">Category Analysis</h4>
+        <small class="text-muted">Last 12 months</small>
     </div>
-    <form method="get" action="/categories" class="d-flex align-items-center gap-2">
-        <label class="text-muted small me-1">Month:</label>
-        <select name="month" class="form-select form-select-sm month-selector" onchange="this.form.submit()">
-            {% for m in available_months %}
-            <option value="{{ m.value }}" {% if m.value == selected_month %}selected{% endif %}>
-                {{ m.label }}
-            </option>
-            {% endfor %}
-        </select>
-    </form>
 </div>
 
-<div class="row g-3">
-    <!-- Doughnut chart -->
-    <div class="col-12 col-lg-5">
-        <div class="card h-100">
-            <div class="card-header"><i class="bi bi-pie-chart me-2"></i>Spending Distribution</div>
-            <div class="card-body chart-container d-flex align-items-center justify-content-center">
-                {% if category_rows %}
-                <canvas id="categoryChart"></canvas>
-                {% else %}
-                <div class="empty-state">
-                    <i class="bi bi-pie-chart"></i>
-                    No categorized spending this month.
-                </div>
-                {% endif %}
+<!-- Stat tiles -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="stat-card stat-bg-blue" style="min-height:100px;">
+            <div class="stat-label"><i class="bi bi-grid me-1"></i>Total Categories</div>
+            <div class="stat-value">{{ total_cat_count }}</div>
+            <div class="stat-sub">expense categories</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card stat-bg-green" style="min-height:100px;">
+            <div class="stat-label"><i class="bi bi-bullseye me-1"></i>Total Budgeted/mo</div>
+            <div class="stat-value">${{ "%.2f"|format(total_budgeted_mo) }}</div>
+            <div class="stat-sub">across all categories</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card {% if most_over_amt > 0 %}stat-bg-red{% else %}stat-bg-green{% endif %}" style="min-height:100px;">
+            <div class="stat-label"><i class="bi bi-exclamation-triangle me-1"></i>Most Over Budget</div>
+            <div class="stat-value" style="font-size:1.1rem;">{{ most_over_name }}</div>
+            <div class="stat-sub">
+                {% if most_over_amt > 0 %}+${{ "%.2f"|format(most_over_amt) }} avg/mo{% else %}All on track ✓{% endif %}
             </div>
         </div>
     </div>
-
-    <!-- Category table -->
-    <div class="col-12 col-lg-7">
-        <div class="card h-100">
-            <div class="card-header"><i class="bi bi-table me-2"></i>Spending by Category</div>
-            <div class="card-body p-0">
-                {% if category_rows %}
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                        <thead>
-                            <tr>
-                                <th>Category</th>
-                                <th class="text-end">Spent</th>
-                                <th class="text-end">% of Total</th>
-                                <th>Share</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for row in category_rows %}
-                            <tr {% if row.spent == 0 %}class="text-muted"{% endif %}>
-                                <td class="fw-semibold {% if row.spent == 0 %}text-muted{% endif %}">{{ row.category }}</td>
-                                <td class="text-end {% if row.spent > 0 %}amount-debit{% else %}text-muted{% endif %}">
-                                    {% if row.spent > 0 %}-${{ "%.2f"|format(row.spent) }}{% else %}&mdash;{% endif %}
-                                </td>
-                                <td class="text-end text-muted">{{ "%.1f"|format(row.pct) if row.pct > 0 else "—" }}{% if row.pct > 0 %}%{% endif %}</td>
-                                <td style="min-width: 120px;">
-                                    {% if row.spent > 0 %}
-                                    <div class="progress">
-                                        <div class="progress-bar bg-primary"
-                                             style="width: {{ row.pct }}%">
-                                        </div>
-                                    </div>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                        <tfoot class="table-light">
-                            <tr>
-                                <td class="fw-bold">Total</td>
-                                <td class="text-end fw-bold amount-debit">
-                                    -${{ "%.2f"|format(total_spent) }}
-                                </td>
-                                <td class="text-end fw-bold">100%</td>
-                                <td></td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-                {% else %}
-                <div class="empty-state">
-                    <i class="bi bi-inbox"></i>
-                    No categorized transactions found for this month.
-                </div>
-                {% endif %}
+    <div class="col-6 col-md-3">
+        <div class="stat-card stat-bg-orange" style="min-height:100px;">
+            <div class="stat-label"><i class="bi bi-piggy-bank me-1"></i>Top Savings Draw</div>
+            <div class="stat-value" style="font-size:1.1rem;">{{ top_savings_name }}</div>
+            <div class="stat-sub">
+                {% if top_savings_amt > 0 %}${{ "%.2f"|format(top_savings_amt) }} avg/mo{% else %}No activity{% endif %}
             </div>
         </div>
+    </div>
+</div>
+
+<!-- Category table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-grid me-2"></i>All Categories — Last 12 Months</span>
+        <span class="text-muted small fw-normal">Click a row to expand</span>
+    </div>
+    <div class="card-body p-0">
+        {% if cat_rows %}
+        <div class="table-responsive">
+            <table class="table mb-0" id="catTable">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:2rem;"></th>
+                        <th>Category</th>
+                        <th class="text-end">Budget/mo</th>
+                        <th class="text-end">Avg Spent</th>
+                        <th class="text-end">Avg vs Budget</th>
+                        <th class="text-center" style="width:130px;">Trend (12mo)</th>
+                        <th class="text-center">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in cat_rows %}
+                    {% set has_budget = row.budget > 0 %}
+                    {% set is_over = row.avg_diff is not none and row.avg_diff > 0 %}
+                    {% set is_watch = row.avg_diff is not none and row.avg_diff > 0 and (row.avg_spent / row.budget * 100) < 115 %}
+
+                    <!-- Main row -->
+                    <tr class="cat-expand-row" data-index="{{ loop.index0 }}">
+                        <td><i class="bi bi-chevron-right cat-expand-icon"></i></td>
+                        <td class="fw-semibold">{{ row.name }}</td>
+                        <td class="text-end text-muted">
+                            {% if has_budget %}${{ "%.2f"|format(row.budget) }}{% else %}—{% endif %}
+                        </td>
+                        <td class="text-end amount-debit">
+                            {% if row.avg_spent > 0 %}${{ "%.2f"|format(row.avg_spent) }}{% else %}<span class="text-muted">—</span>{% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if row.avg_diff is not none %}
+                                {% if row.avg_diff > 0 %}
+                                <span class="amount-debit">+${{ "%.2f"|format(row.avg_diff) }}</span>
+                                {% else %}
+                                <span class="amount-credit">-${{ "%.2f"|format(row.avg_diff|abs) }}</span>
+                                {% endif %}
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <div style="height:40px; width:110px; display:inline-block;">
+                                <canvas id="spark-{{ loop.index0 }}"></canvas>
+                            </div>
+                        </td>
+                        <td class="text-center">
+                            {% if not has_budget %}
+                            <span class="cat-badge cat-badge-nobudget">No Budget</span>
+                            {% elif row.avg_diff is not none and row.avg_diff > 0 %}
+                                {% if (row.avg_spent / row.budget * 100) >= 115 %}
+                                <span class="cat-badge cat-badge-over"><i class="bi bi-exclamation-circle me-1"></i>Over</span>
+                                {% else %}
+                                <span class="cat-badge cat-badge-watch"><i class="bi bi-eye me-1"></i>Watch</span>
+                                {% endif %}
+                            {% elif row.avg_spent == 0 %}
+                            <span class="cat-badge cat-badge-nobudget">No Activity</span>
+                            {% else %}
+                            <span class="cat-badge cat-badge-ontrack"><i class="bi bi-check-circle me-1"></i>On Track</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+
+                    <!-- Detail panel row -->
+                    <tr class="cat-detail-panel d-none" id="panel-{{ loop.index0 }}">
+                        <td colspan="7">
+                            <!-- Mini stats -->
+                            <div class="d-flex gap-3 mb-3 flex-wrap">
+                                <div class="mini-stat">
+                                    <div class="mini-stat-lbl">Avg Monthly</div>
+                                    <div class="mini-stat-val amount-debit">
+                                        {% if row.avg_spent > 0 %}${{ "%.2f"|format(row.avg_spent) }}{% else %}<span class="text-muted">$0.00</span>{% endif %}
+                                    </div>
+                                </div>
+                                <div class="mini-stat">
+                                    <div class="mini-stat-lbl">Avg vs Budget</div>
+                                    <div class="mini-stat-val {% if row.avg_diff is not none %}{% if row.avg_diff > 0 %}amount-debit{% else %}amount-credit{% endif %}{% else %}text-muted{% endif %}">
+                                        {% if row.avg_diff is not none %}
+                                            {{ "%.0f"|format(row.avg_spent / row.budget * 100) }}%
+                                        {% else %}N/A{% endif %}
+                                    </div>
+                                </div>
+                                <div class="mini-stat">
+                                    <div class="mini-stat-lbl">Highest Month</div>
+                                    <div class="mini-stat-val amount-debit">
+                                        ${{ "%.2f"|format(row.max_spent) }}
+                                        <span class="text-muted" style="font-size:0.7rem;font-weight:400;"> {{ row.max_month }}</span>
+                                    </div>
+                                </div>
+                                <div class="mini-stat">
+                                    <div class="mini-stat-lbl">Active Months</div>
+                                    <div class="mini-stat-val" style="color:#6366f1;">
+                                        {{ row.active_months }}
+                                        <span style="font-size:0.75rem;font-weight:400;color:#9ca3af;">/ 12</span>
+                                    </div>
+                                </div>
+                                {% if has_budget %}
+                                <div class="mini-stat">
+                                    <div class="mini-stat-lbl">Suggested Budget</div>
+                                    <div class="mini-stat-val text-muted">
+                                        ${{ "%.2f"|format(row.avg_spent * 1.05) }}
+                                        <span style="font-size:0.7rem;font-weight:400;"> (+5%)</span>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <!-- Detail chart -->
+                            <div style="position:relative; height:260px;">
+                                <canvas id="detail-{{ loop.index0 }}"></canvas>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state"><i class="bi bi-inbox"></i>No categories found.</div>
+        {% endif %}
     </div>
 </div>
 
 {% endblock %}
 
 {% block scripts %}
-{% if category_rows %}
+<style>
+    .cat-expand-row { cursor: pointer; transition: background 0.15s; }
+    .cat-expand-row:hover td { background: #f0f4ff !important; }
+    .cat-expand-row td { vertical-align: middle; }
+    .cat-expand-icon { transition: transform 0.2s; color: #9ca3af; font-size: 0.8rem; }
+    .cat-expand-icon.open { transform: rotate(90deg); color: #4e73df; }
+    .cat-detail-panel td { padding: 1.25rem 1.5rem !important; background: #f8f9fc; }
+    .cat-detail-panel { border-top: 2px solid #e0e7ff; }
+    .mini-stat { background:#fff; border-radius:8px; padding:0.6rem 1rem;
+                 box-shadow:0 1px 4px rgba(0,0,0,0.07); text-align:center; min-width:110px; }
+    .mini-stat-val { font-size:1.05rem; font-weight:700; }
+    .mini-stat-lbl { font-size:0.68rem; color:#6b7280; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:2px; }
+    .cat-badge { font-size:0.7rem; padding:0.25rem 0.55rem; border-radius:20px; font-weight:600; display:inline-block; }
+    .cat-badge-ontrack  { background:#d1fae5; color:#065f46; }
+    .cat-badge-over     { background:#fee2e2; color:#991b1b; }
+    .cat-badge-watch    { background:#fef3c7; color:#92400e; }
+    .cat-badge-nobudget { background:#f3f4f6; color:#6b7280; }
+</style>
 <script>
-    const labels = {{ category_labels | tojson }};
-    const values = {{ category_values | tojson }};
-    const colors = [
-        "#4e73df", "#1cc88a", "#36b9cc", "#f6c23e", "#e74a3b",
-        "#858796", "#5a5c69", "#2e59d9", "#17a673", "#2c9faf",
-        "#dda20a", "#be2617", "#60616f", "#373840", "#1a3a7a",
-    ];
+const MONTH_LABELS   = {{ month_labels | tojson }};
+const CAT_DATA       = {{ cat_rows | tojson }};
+const sparkCharts    = {};
+const detailCharts   = {};
+let openIndex        = null;
 
-    new Chart(document.getElementById("categoryChart"), {
-        type: "doughnut",
+// ── Sparklines ────────────────────────────────────────────────────────────────
+CAT_DATA.forEach((cat, i) => {
+    const el = document.getElementById(`spark-${i}`);
+    if (!el) return;
+    sparkCharts[i] = new Chart(el, {
+        type: "bar",
         data: {
-            labels: labels,
-            datasets: [{
-                data: values,
-                backgroundColor: colors.slice(0, labels.length),
-                borderWidth: 2,
-                borderColor: "#fff",
-            }]
+            labels: MONTH_LABELS,
+            datasets: [
+                cat.budget > 0 ? {
+                    type: "line",
+                    data: Array(cat.monthly_spent.length).fill(cat.budget),
+                    borderColor: "rgba(99,102,241,0.5)",
+                    borderWidth: 1.5,
+                    borderDash: [3,3],
+                    pointRadius: 0,
+                    fill: false,
+                } : null,
+                {
+                    data: cat.monthly_spent,
+                    backgroundColor: cat.monthly_spent.map(v =>
+                        cat.budget === 0 ? "rgba(234,130,50,0.75)" :
+                        v > cat.budget   ? "rgba(231,74,59,0.75)" : "rgba(28,200,138,0.7)"
+                    ),
+                    borderRadius: 2,
+                }
+            ].filter(Boolean)
         },
         options: {
-            responsive: true,
-            plugins: {
-                legend: {
-                    position: "bottom",
-                    labels: { font: { size: 11 }, padding: 12 }
+            responsive: true, maintainAspectRatio: false, animation: false,
+            plugins: { legend: { display:false }, tooltip: { enabled:false } },
+            scales: { x: { display:false }, y: { display:false, beginAtZero:true } }
+        }
+    });
+});
+
+// ── Detail chart ──────────────────────────────────────────────────────────────
+function openDetail(i) {
+    const cat    = CAT_DATA[i];
+    const canvasId = `detail-${i}`;
+    if (detailCharts[i]) { detailCharts[i].destroy(); }
+
+    const datasets = [
+        cat.budget > 0 ? {
+            label: "Budgeted",
+            data: Array(cat.monthly_spent.length).fill(cat.budget),
+            backgroundColor: "rgba(99,102,241,0.2)",
+            borderColor: "rgba(99,102,241,0.6)",
+            borderWidth: 1.5,
+            borderRadius: 4,
+            order: 3,
+        } : null,
+        {
+            label: "Actual Spent",
+            data: cat.monthly_spent,
+            backgroundColor: cat.monthly_spent.map(v =>
+                cat.budget === 0 ? "rgba(234,130,50,0.8)" :
+                v > cat.budget   ? "rgba(231,74,59,0.75)" : "rgba(28,200,138,0.75)"
+            ),
+            borderRadius: 4,
+            order: 2,
+        },
+        cat.budget > 0 ? {
+            label: "Over / Under",
+            data: cat.over_under,
+            type: "line",
+            borderColor: "#6366f1",
+            backgroundColor: "rgba(99,102,241,0.07)",
+            pointBackgroundColor: cat.over_under.map(v => v === null ? "transparent" : v >= 0 ? "#1cc88a" : "#e74a3b"),
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            borderWidth: 2,
+            tension: 0.3,
+            fill: true,
+            yAxisID: "y2",
+            order: 1,
+        } : null,
+    ].filter(Boolean);
+
+    detailCharts[i] = new Chart(document.getElementById(canvasId), {
+        type: "bar",
+        data: { labels: MONTH_LABELS, datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: "index", intersect: false },
+            plugins: { legend: { position: "top" } },
+            scales: {
+                y: {
+                    beginAtZero: true, position: "left",
+                    ticks: { callback: v => "$" + v.toLocaleString() }
                 },
-                tooltip: {
-                    callbacks: {
-                        label: ctx => ` $${ctx.parsed.toFixed(2)} (${((ctx.parsed / values.reduce((a,b) => a+b, 0)) * 100).toFixed(1)}%)`
+                ...(cat.budget > 0 ? {
+                    y2: {
+                        position: "right",
+                        title: { display: true, text: "Over / Under ($)", color: "#6366f1" },
+                        ticks: { callback: v => (v>=0?"+":"")+v.toLocaleString(), color: "#6366f1" },
+                        grid: { drawOnChartArea: false },
                     }
-                }
+                } : {})
             }
         }
     });
+}
+
+// ── Row click toggle ──────────────────────────────────────────────────────────
+document.querySelectorAll(".cat-expand-row").forEach(row => {
+    row.addEventListener("click", () => {
+        const i     = parseInt(row.dataset.index);
+        const panel = document.getElementById(`panel-${i}`);
+        const icon  = row.querySelector(".cat-expand-icon");
+        const isOpen = !panel.classList.contains("d-none");
+
+        // Close current open
+        if (openIndex !== null && openIndex !== i) {
+            document.getElementById(`panel-${openIndex}`).classList.add("d-none");
+            document.querySelector(`[data-index="${openIndex}"] .cat-expand-icon`).classList.remove("open");
+        }
+
+        if (isOpen) {
+            panel.classList.add("d-none");
+            icon.classList.remove("open");
+            openIndex = null;
+        } else {
+            panel.classList.remove("d-none");
+            icon.classList.add("open");
+            openIndex = i;
+            requestAnimationFrame(() => openDetail(i));
+        }
+    });
+});
 </script>
-{% endif %}
 {% endblock %}

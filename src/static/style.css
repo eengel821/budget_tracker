@@ -31,6 +31,10 @@ main {
     padding: 1.25rem 1.5rem;
     color: #fff;
     margin-bottom: 1rem;
+    min-height: 110px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
 .stat-card .stat-label {
@@ -77,8 +81,8 @@ main {
 }
 
 /* ── Amount colors ── */
-.amount-debit  { color: #e74a3b !important; font-weight: 600; }
-.amount-credit { color: #1cc88a !important; font-weight: 600; }
+.amount-debit  { color: #e74a3b; font-weight: 600; }
+.amount-credit { color: #1cc88a; font-weight: 600; }
 
 /* ── Budget progress bars ── */
 .progress {

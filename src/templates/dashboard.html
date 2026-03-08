@@ -10,7 +10,6 @@
         <h4 class="mb-0 fw-bold">Dashboard</h4>
         <small class="text-muted">{{ current_month_label }}</small>
     </div>
-    <!-- Month selector -->
     <form method="get" action="/" class="d-flex align-items-center gap-2">
         <label class="text-muted small me-1">Month:</label>
         <select name="month" class="form-select form-select-sm month-selector" onchange="this.form.submit()">
@@ -23,36 +22,28 @@
     </form>
 </div>
 
-<!-- Stat cards -->
+<!-- Stat tiles -->
 <div class="row g-3 mb-4">
     <div class="col-12 col-sm-6 col-xl-3">
+        <div class="stat-card stat-bg-green">
+            <div class="stat-label"><i class="bi bi-bullseye me-1"></i>Total Budgeted</div>
+            <div class="stat-value">${{ "%.2f"|format(total_budgeted) }}</div>
+            <div class="stat-sub">monthly expense target</div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
         <div class="stat-card stat-bg-blue">
-            <div class="stat-label"><i class="bi bi-calendar3 me-1"></i>Total Spent</div>
+            <div class="stat-label"><i class="bi bi-credit-card me-1"></i>Total Spent</div>
             <div class="stat-value">${{ "%.2f"|format(total_spent|abs) }}</div>
             <div class="stat-sub">{{ current_month_label }}</div>
         </div>
     </div>
     <div class="col-12 col-sm-6 col-xl-3">
-        <div class="stat-card stat-bg-green">
-            <div class="stat-label"><i class="bi bi-bullseye me-1"></i>Total Budgeted</div>
-            <div class="stat-value">${{ "%.2f"|format(total_budgeted) }}</div>
-            <div class="stat-sub">This month</div>
-        </div>
-    </div>
-    <div class="col-12 col-sm-6 col-xl-3">
-        {% if total_remaining >= 0 %}
-        <div class="stat-card stat-bg-green">
+        <div class="stat-card {% if total_remaining >= 0 %}stat-bg-green{% else %}stat-bg-red{% endif %}">
             <div class="stat-label"><i class="bi bi-piggy-bank me-1"></i>Remaining</div>
-            <div class="stat-value">${{ "%.2f"|format(total_remaining) }}</div>
-            <div class="stat-sub">Under budget</div>
+            <div class="stat-value">{% if total_remaining < 0 %}-{% endif %}${{ "%.2f"|format(total_remaining|abs) }}</div>
+            <div class="stat-sub">{% if total_remaining >= 0 %}under budget ✓{% else %}over budget{% endif %}</div>
         </div>
-        {% else %}
-        <div class="stat-card stat-bg-red">
-            <div class="stat-label"><i class="bi bi-exclamation-triangle me-1"></i>Over Budget</div>
-            <div class="stat-value">${{ "%.2f"|format(total_remaining|abs) }}</div>
-            <div class="stat-sub">Over budget</div>
-        </div>
-        {% endif %}
     </div>
     <div class="col-12 col-sm-6 col-xl-3">
         <div class="stat-card stat-bg-orange">
@@ -62,46 +53,24 @@
                 {% if uncategorized_count > 0 %}
                 <a href="/review" class="text-white">Review now →</a>
                 {% else %}
-                All categorized
+                All categorized ✓
                 {% endif %}
             </div>
         </div>
     </div>
 </div>
 
-<!-- Charts row -->
-<div class="row g-3 mb-4">
-    <!-- Spending by category bar chart -->
-    <div class="col-12 col-lg-8">
-        <div class="card h-100">
-            <div class="card-header">
-                <i class="bi bi-bar-chart me-2"></i>Spending by Category
-            </div>
-            <div class="card-body chart-container">
-                <canvas id="spendingByCategory"></canvas>
-            </div>
-        </div>
-    </div>
 
-    <!-- Top 5 categories -->
-    <div class="col-12 col-lg-4">
-        <div class="card h-100">
-            <div class="card-header">
-                <i class="bi bi-trophy me-2"></i>Top Spending Categories
-            </div>
-            <div class="card-body p-0">
-                <ul class="list-group list-group-flush">
-                    {% for item in top_categories %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center px-3 py-3">
-                        <span class="fw-semibold small">{{ item.category }}</span>
-                        <span class="amount-debit">${{ "%.2f"|format(item.spent|abs) }}</span>
-                    </li>
-                    {% else %}
-                    <li class="list-group-item text-muted text-center py-4">No data yet</li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
+
+<!-- Monthly trend chart -->
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-bar-chart me-2"></i>Monthly Budget Performance — Last 12 Months</div>
+    <div class="card-body" style="position:relative; height:420px;">
+        {% if trend_labels %}
+        <canvas id="trendChart"></canvas>
+        {% else %}
+        <div class="empty-state"><i class="bi bi-inbox"></i>Not enough data yet.</div>
+        {% endif %}
     </div>
 </div>
 
@@ -147,8 +116,7 @@
         </div>
         {% else %}
         <div class="empty-state">
-            <i class="bi bi-inbox"></i>
-            No transactions found for this month.
+            <i class="bi bi-inbox"></i>No transactions found for this month.
         </div>
         {% endif %}
     </div>
@@ -158,42 +126,108 @@
 
 {% block scripts %}
 <script>
-    const categoryLabels = {{ category_labels | tojson }};
-    const categorySpent  = {{ category_spent  | tojson }};
-    const categoryBudget = {{ category_budget | tojson }};
+{% if trend_labels %}
+const trendLabels      = {{ trend_labels       | tojson }};
+const trendIncBudgeted = {{ trend_inc_budgeted | tojson }};
+const trendIncActual   = {{ trend_inc_actual   | tojson }};
+const trendExpBudgeted = {{ trend_exp_budgeted | tojson }};
+const trendExpActual   = {{ trend_exp_actual   | tojson }};
+const trendNetCashflow = {{ trend_net_cashflow | tojson }};
 
-    new Chart(document.getElementById("spendingByCategory"), {
-        type: "bar",
-        data: {
-            labels: categoryLabels,
-            datasets: [
-                {
-                    label: "Spent",
-                    data: categorySpent,
-                    backgroundColor: "rgba(78, 115, 223, 0.8)",
-                    borderRadius: 4,
-                },
-                {
-                    label: "Budget",
-                    data: categoryBudget,
-                    backgroundColor: "rgba(28, 200, 138, 0.5)",
-                    borderRadius: 4,
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            plugins: { legend: { position: "top" } },
-            scales: {
-                x: { ticks: { font: { size: 11 } } },
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: val => "$" + val.toLocaleString()
+new Chart(document.getElementById("trendChart"), {
+    type: "bar",
+    data: {
+        labels: trendLabels,
+        datasets: [
+            {
+                label: "Income Budgeted",
+                data: trendIncBudgeted,
+                backgroundColor: "rgba(28, 200, 138, 0.25)",
+                borderColor: "rgba(28, 200, 138, 0.7)",
+                borderWidth: 1.5,
+                borderRadius: 4,
+                yAxisID: "y",
+                order: 4,
+            },
+            {
+                label: "Income Actual",
+                data: trendIncActual,
+                backgroundColor: "rgba(28, 200, 138, 0.75)",
+                borderRadius: 4,
+                yAxisID: "y",
+                order: 3,
+            },
+            {
+                label: "Expense Budgeted",
+                data: trendExpBudgeted,
+                backgroundColor: "rgba(231, 74, 59, 0.2)",
+                borderColor: "rgba(231, 74, 59, 0.6)",
+                borderWidth: 1.5,
+                borderRadius: 4,
+                yAxisID: "y",
+                order: 2,
+            },
+            {
+                label: "Expense Actual",
+                data: trendExpActual,
+                backgroundColor: "rgba(231, 74, 59, 0.7)",
+                borderRadius: 4,
+                yAxisID: "y",
+                order: 2,
+            },
+            {
+                label: "Net Cash Flow",
+                data: trendNetCashflow,
+                type: "line",
+                borderColor: "#6366f1",
+                backgroundColor: "rgba(99,102,241,0.08)",
+                pointBackgroundColor: trendNetCashflow.map(v => v >= 0 ? "#1cc88a" : "#e74a3b"),
+                pointRadius: 5,
+                pointHoverRadius: 7,
+                borderWidth: 2,
+                tension: 0.3,
+                fill: true,
+                yAxisID: "y2",
+                order: 1,
+            },
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+            legend: { position: "top" },
+            tooltip: {
+                callbacks: {
+                    label: ctx => {
+                        if (ctx.parsed.y == null) return '';
+                        const v    = ctx.parsed.y;
+                        const sign = v >= 0 ? "+" : "-";
+                        return ` ${ctx.dataset.label}: ${sign}$${Math.abs(v).toLocaleString("en-US", {minimumFractionDigits:2})}`;
                     }
                 }
             }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                position: "left",
+                title: { display: true, text: "Amount ($)", color: "#666" },
+                ticks: { callback: v => "$" + v.toLocaleString() },
+            },
+            y2: {
+                position: "right",
+                title: { display: true, text: "Net Cash Flow ($)", color: "#6366f1" },
+                ticks: {
+                    callback: v => (v >= 0 ? "+" : "") + "$" + Math.abs(v).toLocaleString(),
+                    color: "#6366f1",
+                },
+                grid: { drawOnChartArea: false },
+            }
         }
-    });
+    }
+});
+{% endif %}
 </script>
 {% endblock %}
