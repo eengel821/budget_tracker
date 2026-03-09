@@ -3,14 +3,833 @@
 {% block title %}Savings — Budget Tracker{% endblock %}
 
 {% block content %}
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h4 class="mb-0 fw-bold">Savings</h4>
-        <small class="text-muted">Coming soon — savings account management</small>
+        <small class="text-muted">
+            {% if savings_account %}
+                {{ savings_account.name }} —
+            {% endif %}
+            {{ savings_transactions|length }} transaction{{ 's' if savings_transactions|length != 1 else '' }}
+        </small>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-secondary" type="button"
+            data-bs-toggle="offcanvas" data-bs-target="#importSavingsDrawer">
+            <i class="bi bi-upload me-1"></i>Import CSV
+        </button>
+        <button class="btn btn-sm btn-primary" onclick="openAddTransaction()">
+            <i class="bi bi-plus-lg me-1"></i>Add Transaction
+        </button>
     </div>
 </div>
-<div class="alert alert-info">
-    <i class="bi bi-info-circle me-2"></i>
-    Savings page is under construction. Phase 4 will bring the full UI.
+
+<!-- ── Import offcanvas drawer ───────────────────────────────────────────── -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="importSavingsDrawer" style="width:420px;">
+    <div class="offcanvas-header border-bottom">
+        <h5 class="offcanvas-title fw-bold">
+            <i class="bi bi-upload me-2 text-primary"></i>Import Savings Transactions
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body d-flex flex-column">
+        <div id="savings-import-form-section">
+            <p class="text-muted small mb-4">
+                Select your institution and upload a CSV export. Duplicates are skipped automatically.
+            </p>
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Institution</label>
+                <select id="savings-import-bank" class="form-select">
+                    <option value="" disabled selected>Select institution…</option>
+                    <option value="etrade">E*Trade</option>
+                    <option value="becu">BECU</option>
+                </select>
+            </div>
+            <div class="mb-4">
+                <label class="form-label fw-semibold">CSV File</label>
+                <div id="savings-drop-zone"
+                     class="border border-2 border-dashed rounded p-4 text-center"
+                     style="cursor:pointer; border-color:#dee2e6 !important; transition:border-color 0.2s;"
+                     onclick="document.getElementById('savings-import-file').click()"
+                     ondragover="event.preventDefault(); this.style.borderColor='#0d6efd';"
+                     ondragleave="this.style.borderColor='#dee2e6';"
+                     ondrop="handleSavingsDrop(event)">
+                    <i class="bi bi-file-earmark-arrow-up fs-2 text-muted"></i>
+                    <div class="text-muted small mt-2" id="savings-drop-label">
+                        Drag &amp; drop or <span class="text-primary">browse</span>
+                    </div>
+                </div>
+                <input type="file" id="savings-import-file" accept=".csv,.CSV,text/csv" class="d-none"
+                       onchange="handleSavingsFileSelect(this.files[0])">
+            </div>
+            <button id="savings-import-btn" class="btn btn-primary w-100" onclick="runSavingsImport()" disabled>
+                <i class="bi bi-upload me-2"></i>Import
+            </button>
+        </div>
+        <div id="savings-import-loading" class="d-none flex-column align-items-center justify-content-center flex-grow-1 text-center">
+            <div class="spinner-border text-primary mb-3" role="status"></div>
+            <div class="text-muted">Importing transactions…</div>
+        </div>
+        <div id="savings-import-result" class="d-none flex-column flex-grow-1">
+            <div class="alert alert-success d-flex align-items-center gap-2 mb-4">
+                <i class="bi bi-check-circle-fill fs-5"></i>
+                <span class="fw-semibold">Import Complete</span>
+            </div>
+            <div class="card mb-4">
+                <div class="card-body p-0">
+                    <table class="table mb-0">
+                        <tbody>
+                            <tr><td class="text-muted">Imported</td><td class="text-end fw-bold amount-credit" id="sav-res-imported">—</td></tr>
+                            <tr><td class="text-muted">Duplicates skipped</td><td class="text-end fw-bold text-muted" id="sav-res-dupes">—</td></tr>
+                            <tr><td class="text-muted">Rows skipped</td><td class="text-end fw-bold text-muted" id="sav-res-skipped">—</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <button class="btn btn-outline-secondary w-100" onclick="resetSavingsImport()">
+                <i class="bi bi-arrow-repeat me-2"></i>Import Another File
+            </button>
+        </div>
+        <div id="savings-import-error" class="d-none mt-3">
+            <div class="alert alert-danger d-flex align-items-start gap-2">
+                <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+                <div>
+                    <div class="fw-semibold">Import Failed</div>
+                    <div class="small" id="savings-import-error-msg"></div>
+                </div>
+            </div>
+            <button class="btn btn-outline-secondary w-100" onclick="resetSavingsImport()">
+                <i class="bi bi-arrow-repeat me-2"></i>Try Again
+            </button>
+        </div>
+    </div>
 </div>
+
+<!-- ── Summary tiles ─────────────────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="stat-card stat-bg-purple">
+            <div class="stat-label">Total Savings</div>
+            <div class="stat-value">${{ "%.2f"|format(account_balance) }}</div>
+            <div class="stat-sub">Account balance</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        {% set balance_diff = account_balance - jar_total %}
+        <div class="stat-card {% if balance_diff|abs < 0.01 %}stat-bg-green{% else %}stat-bg-red{% endif %}">
+            <div class="stat-label">Jar Total</div>
+            <div class="stat-value">${{ "%.2f"|format(jar_total) }}</div>
+            <div class="stat-sub">
+                {% if balance_diff|abs < 0.01 %}
+                    ✓ Fully accounted for
+                {% elif balance_diff > 0 %}
+                    ⚠ ${{ "%.2f"|format(balance_diff) }} unallocated
+                {% else %}
+                    ⚠ Over by ${{ "%.2f"|format(balance_diff|abs) }}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card stat-bg-blue">
+            <div class="stat-label">Deposits YTD</div>
+            <div class="stat-value">${{ "%.2f"|format(deposits_ytd) }}</div>
+            <div class="stat-sub">{{ deposit_count }} transaction{{ 's' if deposit_count != 1 else '' }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card stat-bg-orange">
+            <div class="stat-label">Withdrawals YTD</div>
+            <div class="stat-value">${{ "%.2f"|format(withdrawals_ytd) }}</div>
+            <div class="stat-sub">{{ withdrawal_count }} transaction{{ 's' if withdrawal_count != 1 else '' }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Jar balance tiles ─────────────────────────────────────────────────── -->
+{% if jar_balances %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-collection me-2"></i>Jar Balances</span>
+        <small class="text-muted">{{ jar_balances|length }} jar{{ 's' if jar_balances|length != 1 else '' }}</small>
+    </div>
+    <div class="card-body pb-2">
+        <div class="row g-2">
+            {% for jar in jar_balances %}
+            <div class="col-6 col-md-3 col-lg-2">
+                <div class="jar-tile" onclick="openJarHistory({{ jar.category_id }}, '{{ jar.name }}')">
+                    <div class="jar-tile-name">{{ jar.name }}</div>
+                    <div class="jar-tile-amount {% if jar.balance < 0 %}amount-debit{% endif %}">
+                        {% if jar.balance < 0 %}−{% endif %}${{ "%.2f"|format(jar.balance|abs) }}
+                    </div>
+                    <div class="jar-bar mt-1">
+                        <div class="jar-bar-fill" style="width:{{ [jar.pct, 100]|min }}%; background:{{ jar.color }};"></div>
+                    </div>
+                    <small class="text-muted" style="font-size:0.68rem;">
+                        {{ "%.1f"|format(jar.pct) }}% of savings
+                        {% if jar.balance < 0 %}<span class="text-danger ms-1">⚠ negative</span>{% endif %}
+                    </small>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ── Jar history offcanvas ─────────────────────────────────────────────── -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="jarHistoryDrawer" style="width:480px;">
+    <div class="offcanvas-header border-bottom" id="jar-history-header"
+         style="background:linear-gradient(135deg,#6f42c1,#5a32a3);color:#fff;">
+        <div>
+            <h5 class="offcanvas-title fw-bold mb-0" id="jar-history-title">Jar History</h5>
+            <small id="jar-history-balance" style="opacity:0.85;"></small>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body p-0 d-flex flex-column">
+        <!-- Mini chart -->
+        <div class="p-3 pb-0">
+            <div style="position:relative;height:120px;">
+                <canvas id="jarHistoryChart"></canvas>
+            </div>
+        </div>
+        <!-- Stats strip -->
+        <div class="d-flex gap-2 p-3 pb-0" id="jar-stats-strip" style="font-size:0.75rem;"></div>
+        <!-- Ledger -->
+        <div class="flex-grow-1 overflow-auto p-3 pt-2">
+            <table class="table table-sm table-hover mb-0" id="jar-history-table">
+                <thead>
+                    <tr>
+                        <th style="font-size:0.73rem;text-transform:uppercase;letter-spacing:0.04em;">Date</th>
+                        <th style="font-size:0.73rem;text-transform:uppercase;letter-spacing:0.04em;">Transaction</th>
+                        <th class="text-end" style="font-size:0.73rem;text-transform:uppercase;letter-spacing:0.04em;">Amount</th>
+                        <th class="text-end" style="font-size:0.73rem;text-transform:uppercase;letter-spacing:0.04em;">Balance</th>
+                    </tr>
+                </thead>
+                <tbody id="jar-history-tbody">
+                    <tr><td colspan="4" class="text-center text-muted py-3">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ── Filters ───────────────────────────────────────────────────────────── -->
+{% set has_filters = selected_keyword or selected_date_from or selected_date_to or selected_type or selected_jar or selected_status %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center"
+         style="cursor:pointer;" onclick="toggleFilters()">
+        <span>
+            <i class="bi bi-funnel me-2"></i>Filters
+            {% if has_filters %}
+            <span class="badge bg-primary ms-2" id="filter-badge">Active</span>
+            {% else %}
+            <span class="badge bg-secondary ms-2 d-none" id="filter-badge">Active</span>
+            {% endif %}
+        </span>
+        <i class="bi bi-chevron-down" id="filter-chevron"
+           style="transition:transform 0.2s; {% if not has_filters %}transform:rotate(-90deg);{% endif %}"></i>
+    </div>
+    <div id="filter-body" {% if not has_filters %}style="display:none;"{% endif %}>
+        <div class="card-body">
+            <form method="get" action="/savings" id="filter-form" class="row g-3 align-items-end">
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label class="form-label small fw-semibold">Keyword</label>
+                    <input type="text" name="keyword" class="form-control form-control-sm"
+                           placeholder="Search description…" value="{{ selected_keyword or '' }}">
+                </div>
+                <div class="col-12 col-sm-6 col-md-2">
+                    <label class="form-label small fw-semibold">Date From</label>
+                    <input type="date" name="date_from" class="form-control form-control-sm"
+                           value="{{ selected_date_from or '' }}">
+                </div>
+                <div class="col-12 col-sm-6 col-md-2">
+                    <label class="form-label small fw-semibold">Date To</label>
+                    <input type="date" name="date_to" class="form-control form-control-sm"
+                           value="{{ selected_date_to or '' }}">
+                </div>
+                <div class="col-12 col-sm-6 col-md-2">
+                    <label class="form-label small fw-semibold">Type</label>
+                    <select name="type" class="form-select form-select-sm">
+                        <option value="">All types</option>
+                        <option value="deposit"    {% if selected_type == 'deposit'    %}selected{% endif %}>Deposits</option>
+                        <option value="withdrawal" {% if selected_type == 'withdrawal' %}selected{% endif %}>Withdrawals</option>
+                        <option value="interest"   {% if selected_type == 'interest'   %}selected{% endif %}>Interest</option>
+                    </select>
+                </div>
+                <div class="col-12 col-sm-6 col-md-2">
+                    <label class="form-label small fw-semibold">Status</label>
+                    <select name="status" class="form-select form-select-sm">
+                        <option value="">All</option>
+                        <option value="allocated"   {% if selected_status == 'allocated'   %}selected{% endif %}>Allocated</option>
+                        <option value="unallocated" {% if selected_status == 'unallocated' %}selected{% endif %}>Unallocated</option>
+                    </select>
+                </div>
+                <div class="col-12 col-sm-6 col-md-1 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-sm w-100">
+                        <i class="bi bi-search me-1"></i>Filter
+                    </button>
+                </div>
+                <div class="col-12 col-sm-6 col-md-1">
+                    <a href="/savings" class="btn btn-outline-secondary btn-sm w-100">
+                        <i class="bi bi-x me-1"></i>Clear
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ── Transaction ledger ────────────────────────────────────────────────── -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-journal-text me-2"></i>Transaction Ledger</span>
+        <small class="text-muted">Most recent first</small>
+    </div>
+    <div class="card-body p-0">
+        {% if savings_transactions %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="savings-table">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-col="0" data-type="date" style="width:110px;white-space:nowrap;">
+                            Date <i class="bi bi-arrow-down-up sort-icon text-muted small"></i>
+                        </th>
+                        <th class="sortable" data-col="1" data-type="str">
+                            Description <i class="bi bi-arrow-down-up sort-icon text-muted small"></i>
+                        </th>
+                        <th class="text-end sortable" data-col="2" data-type="num" style="width:130px;">
+                            Amount <i class="bi bi-arrow-down-up sort-icon text-muted small"></i>
+                        </th>
+                        <th style="width:110px;">Status</th>
+                        <th>Jar Allocations</th>
+                        <th style="width:40px;"></th>
+                    </tr>
+                </thead>
+                <tbody id="savings-tbody">
+                    {% for txn in savings_transactions %}
+                    <tr id="srow-{{ txn.id }}"
+                        {% if not txn.is_allocated %}class="savings-unallocated-row"{% endif %}>
+
+                        <!-- Date -->
+                        <td class="text-muted small align-middle" data-val="{{ txn.date }}"
+                            style="white-space:nowrap;">{{ txn.date }}</td>
+
+                        <!-- Description -->
+                        <td class="align-middle" data-val="{{ txn.description }}">
+                            {{ txn.description }}
+                            {% if txn.notes %}
+                            <small class="text-muted d-block" style="font-size:0.75rem;">
+                                <i class="bi bi-chat-left-text me-1"></i>{{ txn.notes }}
+                            </small>
+                            {% endif %}
+                        </td>
+
+                        <!-- Amount -->
+                        <td class="text-end align-middle fw-semibold" data-val="{{ txn.amount }}">
+                            <span class="{% if txn.amount >= 0 %}amount-credit{% else %}amount-debit{% endif %}">
+                                {% if txn.amount >= 0 %}+{% else %}−{% endif %}${{ "%.2f"|format(txn.amount|abs) }}
+                            </span>
+                        </td>
+
+                        <!-- Status -->
+                        <td class="align-middle">
+                            {% if txn.is_allocated %}
+                            <span class="badge-alloc-sav">✓ Allocated</span>
+                            {% else %}
+                            <span class="badge-unalloc-sav">⚠ Pending</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Jar allocations summary -->
+                        <td class="align-middle">
+                            {% if txn.allocations %}
+                                {% for alloc in txn.allocations %}
+                                <span class="alloc-pill {% if alloc.amount >= 0 %}alloc-deposit{% else %}alloc-withdraw{% endif %}">
+                                    {{ alloc.category.name }}
+                                    {% if alloc.amount >= 0 %}+{% else %}−{% endif %}${{ "%.2f"|format(alloc.amount|abs) }}
+                                </span>
+                                {% endfor %}
+                            {% else %}
+                                <em class="text-muted small">Not yet allocated to jars</em>
+                            {% endif %}
+                        </td>
+
+                        <!-- Actions -->
+                        <td class="align-middle">
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                                        style="padding:0.15rem 0.4rem;font-size:0.75rem;"
+                                        data-bs-toggle="dropdown">⋯</button>
+                                <ul class="dropdown-menu dropdown-menu-end" style="font-size:0.85rem;">
+                                    <li>
+                                        <a class="dropdown-item" href="#"
+                                           onclick="openAllocateModal({{ txn.id }}, {{ txn.amount }}, '{{ txn.description }}', {{ txn.is_allocated|tojson }})">
+                                            <i class="bi bi-distribute-vertical me-2"></i>
+                                            {% if txn.is_allocated %}Edit Allocations{% else %}Allocate{% endif %}
+                                        </a>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <a class="dropdown-item text-danger" href="#"
+                                           onclick="deleteSavingsTransaction({{ txn.id }}, '{{ txn.description }}')">
+                                            <i class="bi bi-trash me-2"></i>Delete
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <td colspan="2" class="fw-semibold text-end text-muted small">Total Deposits:</td>
+                        <td class="text-end amount-credit small" colspan="4">
+                            +${{ "%.2f"|format(total_deposits) }}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="2" class="fw-semibold text-end text-muted small">Total Withdrawals:</td>
+                        <td class="text-end amount-debit small" colspan="4">
+                            −${{ "%.2f"|format(total_withdrawals) }}
+                        </td>
+                    </tr>
+                    <tr class="border-top">
+                        <td colspan="2" class="fw-semibold text-end">Net:</td>
+                        <td class="text-end fw-bold colspan="4"
+                            {% if (total_deposits - total_withdrawals) >= 0 %}amount-credit{% else %}amount-debit{% endif %}">
+                            {% set net = total_deposits - total_withdrawals %}
+                            {% if net >= 0 %}+{% else %}−{% endif %}${{ "%.2f"|format(net|abs) }}
+                        </td>
+                        <td colspan="3"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="bi bi-piggy-bank"></i>
+            No savings transactions yet.
+            <div class="mt-2">
+                <button class="btn btn-sm btn-primary" type="button"
+                    data-bs-toggle="offcanvas" data-bs-target="#importSavingsDrawer">
+                    <i class="bi bi-upload me-1"></i>Import CSV
+                </button>
+                <span class="text-muted mx-2">or</span>
+                <button class="btn btn-sm btn-outline-primary" onclick="openAddTransaction()">
+                    <i class="bi bi-plus-lg me-1"></i>Add Manually
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ── Add Transaction Modal ─────────────────────────────────────────────── -->
+<div class="modal fade" id="addTransactionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background:linear-gradient(135deg,#6f42c1,#5a32a3);color:#fff;">
+                <h5 class="modal-title fw-bold">Add Savings Transaction</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Date</label>
+                    <input type="date" id="add-txn-date" class="form-control">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Description</label>
+                    <input type="text" id="add-txn-desc" class="form-control" placeholder="e.g. Paycheck Direct Deposit">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Amount</label>
+                    <div class="input-group">
+                        <span class="input-group-text">$</span>
+                        <input type="number" id="add-txn-amount" class="form-control" step="0.01"
+                               placeholder="0.00">
+                    </div>
+                    <div class="form-text">Use positive for deposits, negative for withdrawals.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Notes <span class="text-muted fw-normal">(optional)</span></label>
+                    <input type="text" id="add-txn-notes" class="form-control" placeholder="Optional note">
+                </div>
+                <div id="add-txn-error" class="alert alert-danger py-2 d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" onclick="submitAddTransaction()"
+                        style="background:#6f42c1;border-color:#6f42c1;">
+                    <i class="bi bi-plus-lg me-1"></i>Add Transaction
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<style>
+    /* ── Savings-specific styles ── */
+    .stat-bg-purple { background: linear-gradient(135deg, #6f42c1, #5a32a3) !important; color: #fff; }
+    .stat-bg-red    { background: linear-gradient(135deg, #e74a3b, #c0392b) !important; color: #fff; }
+
+    .jar-tile {
+        border: 1px solid #e3e6f0;
+        border-radius: 0.5rem;
+        padding: 0.75rem;
+        background: #fff;
+        cursor: pointer;
+        transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .jar-tile:hover {
+        border-color: #6f42c1;
+        box-shadow: 0 0 0 2px rgba(111,66,193,0.15);
+    }
+    .jar-tile-name {
+        font-size: 0.72rem; font-weight: 600;
+        color: #858796; text-transform: uppercase; letter-spacing: 0.04em;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .jar-tile-amount { font-size: 1.1rem; font-weight: 700; color: #2c3e50; }
+    .jar-bar { height: 4px; border-radius: 2px; background: #e9ecef; }
+    .jar-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+
+    .badge-alloc-sav   { background:#d4edda; color:#155724; font-size:0.72rem; font-weight:600; padding:0.2rem 0.5rem; border-radius:0.25rem; white-space:nowrap; }
+    .badge-unalloc-sav { background:#fff3cd; color:#856404; font-size:0.72rem; font-weight:600; padding:0.2rem 0.5rem; border-radius:0.25rem; white-space:nowrap; }
+
+    .alloc-pill {
+        display: inline-block; padding: 0.1rem 0.45rem;
+        border-radius: 1rem; font-size: 0.7rem; font-weight: 600; margin: 1px;
+    }
+    .alloc-deposit  { background: #d4edda; color: #155724; }
+    .alloc-withdraw { background: #f8d7da; color: #721c24; }
+
+    .savings-unallocated-row { background: #fffbeb !important; }
+
+    .sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+    .sortable:hover { background-color: #f0f4ff; }
+    .sortable.asc  .sort-icon::before { content: "\F282"; }
+    .sortable.desc .sort-icon::before { content: "\F286"; }
+    .sortable.asc  .sort-icon,
+    .sortable.desc .sort-icon { color: #4f46e5 !important; }
+
+    /* Dark mode additions for savings page */
+    body.dark-mode .jar-tile { background: #22223b !important; border-color: #3a3a55 !important; }
+    body.dark-mode .jar-tile:hover { border-color: #a78bfa !important; box-shadow: 0 0 0 2px rgba(167,139,250,0.2) !important; }
+    body.dark-mode .jar-tile-name  { color: #9ca3af !important; }
+    body.dark-mode .jar-tile-amount { color: #e0e0e0 !important; }
+    body.dark-mode .savings-unallocated-row { background: #2d2a1a !important; }
+    body.dark-mode .badge-alloc-sav   { background: #064e3b !important; color: #6ee7b7 !important; }
+    body.dark-mode .badge-unalloc-sav { background: #4a3200 !important; color: #fcd38d !important; }
+    body.dark-mode .alloc-deposit  { background: #064e3b !important; color: #6ee7b7 !important; }
+    body.dark-mode .alloc-withdraw { background: #4a1a1a !important; color: #fca5a5 !important; }
+    body.dark-mode .sortable:hover { background-color: #2e2e4a !important; }
+</style>
+<script>
+    // ── Filter panel toggle ──────────────────────────────────────────────────
+    function toggleFilters() {
+        const body    = document.getElementById("filter-body");
+        const chevron = document.getElementById("filter-chevron");
+        const open    = body.style.display !== "none";
+        body.style.display = open ? "none" : "";
+        chevron.style.transform = open ? "rotate(-90deg)" : "rotate(0deg)";
+    }
+
+    // ── Column sorting ───────────────────────────────────────────────────────
+    let sortCol = null, sortDir = "asc";
+    document.querySelectorAll(".sortable").forEach(th => {
+        th.addEventListener("click", () => {
+            const col  = parseInt(th.dataset.col);
+            const type = th.dataset.type;
+            if (sortCol === col) { sortDir = sortDir === "asc" ? "desc" : "asc"; }
+            else { sortCol = col; sortDir = "asc"; }
+            document.querySelectorAll(".sortable").forEach(el => el.classList.remove("asc","desc"));
+            th.classList.add(sortDir);
+            sortTable(col, type, sortDir);
+        });
+    });
+
+    function sortTable(col, type, dir) {
+        const tbody = document.getElementById("savings-tbody");
+        if (!tbody) return;
+        const rows = [...tbody.querySelectorAll("tr")];
+        rows.sort((a, b) => {
+            const aCell = a.querySelectorAll("td")[col];
+            const bCell = b.querySelectorAll("td")[col];
+            let aVal = aCell?.dataset.val ?? aCell?.textContent.trim() ?? "";
+            let bVal = bCell?.dataset.val ?? bCell?.textContent.trim() ?? "";
+            if (type === "num") {
+                aVal = parseFloat(aVal) || 0; bVal = parseFloat(bVal) || 0;
+                return dir === "asc" ? aVal - bVal : bVal - aVal;
+            }
+            return dir === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+        });
+        rows.forEach(row => tbody.appendChild(row));
+    }
+
+    // ── Add Transaction Modal ────────────────────────────────────────────────
+    function openAddTransaction() {
+        // Default date to today
+        const today = new Date().toISOString().split("T")[0];
+        document.getElementById("add-txn-date").value = today;
+        document.getElementById("add-txn-desc").value = "";
+        document.getElementById("add-txn-amount").value = "";
+        document.getElementById("add-txn-notes").value = "";
+        document.getElementById("add-txn-error").classList.add("d-none");
+        new bootstrap.Modal(document.getElementById("addTransactionModal")).show();
+    }
+
+    async function submitAddTransaction() {
+        const date   = document.getElementById("add-txn-date").value;
+        const desc   = document.getElementById("add-txn-desc").value.trim();
+        const amount = parseFloat(document.getElementById("add-txn-amount").value);
+        const notes  = document.getElementById("add-txn-notes").value.trim();
+        const errEl  = document.getElementById("add-txn-error");
+
+        if (!date || !desc || isNaN(amount)) {
+            errEl.textContent = "Please fill in date, description, and amount.";
+            errEl.classList.remove("d-none");
+            return;
+        }
+
+        const resp = await fetch("/api/savings/transactions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ date, description: desc, amount, notes: notes || null })
+        });
+
+        if (resp.ok) {
+            bootstrap.Modal.getInstance(document.getElementById("addTransactionModal")).hide();
+            location.reload();
+        } else {
+            const data = await resp.json();
+            errEl.textContent = data.detail || "Failed to add transaction.";
+            errEl.classList.remove("d-none");
+        }
+    }
+
+    // ── Allocate Modal placeholder (Phase 5) ─────────────────────────────────
+    function openAllocateModal(txnId, amount, description, isAllocated) {
+        // Will be implemented in Phase 5
+        alert(`Allocation modal coming in Phase 5.\nTransaction: ${description}\nAmount: $${Math.abs(amount).toFixed(2)}`);
+    }
+
+    // ── Delete savings transaction ───────────────────────────────────────────
+    async function deleteSavingsTransaction(txnId, description) {
+        if (!confirm(`Delete "${description}"?\n\nThis will also remove all jar allocations for this transaction. This cannot be undone.`)) return;
+
+        const resp = await fetch(`/api/savings/transactions/${txnId}`, { method: "DELETE" });
+        if (resp.ok) {
+            const row = document.getElementById(`srow-${txnId}`);
+            row.style.transition = "opacity 0.3s";
+            row.style.opacity = "0";
+            setTimeout(() => { row.remove(); updateFooterTotals(); }, 300);
+        } else {
+            alert("Failed to delete transaction. Please try again.");
+        }
+    }
+
+    function updateFooterTotals() {
+        let deposits = 0, withdrawals = 0;
+
+        document.querySelectorAll("#savings-tbody tr").forEach(row => {
+            // Amount is stored in data-val on the third td
+            const amountCell = row.querySelectorAll("td")[2];
+            if (!amountCell) return;
+            const val = parseFloat(amountCell.dataset.val) || 0;
+            if (val > 0) deposits    += val;
+            else         withdrawals += Math.abs(val);
+        });
+
+        const net = deposits - withdrawals;
+        const fmt = n => "$" + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+        const tfoot = document.querySelector("#savings-table tfoot");
+        if (!tfoot) return;
+        const rows = tfoot.querySelectorAll("tr");
+
+        // Row 0: Total Deposits
+        rows[0].querySelector("td:last-child").textContent = "+" + fmt(deposits);
+
+        // Row 1: Total Withdrawals
+        rows[1].querySelector("td:last-child").textContent = "−" + fmt(withdrawals);
+
+        // Row 2: Net — also update color class
+        const netCell = rows[2].querySelector("td.fw-bold");
+        if (netCell) {
+            netCell.textContent = (net >= 0 ? "+" : "−") + fmt(Math.abs(net));
+            netCell.classList.toggle("amount-credit", net >= 0);
+            netCell.classList.toggle("amount-debit",  net < 0);
+        }
+    }
+
+    // ── Jar history offcanvas ────────────────────────────────────────────────
+    let jarHistoryChartInstance = null;
+
+    async function openJarHistory(categoryId, jarName) {
+        document.getElementById("jar-history-title").textContent = jarName + " — History";
+        document.getElementById("jar-history-balance").textContent = "Loading…";
+        document.getElementById("jar-history-tbody").innerHTML =
+            '<tr><td colspan="4" class="text-center text-muted py-3">Loading…</td></tr>';
+        document.getElementById("jar-stats-strip").innerHTML = "";
+
+        new bootstrap.Offcanvas(document.getElementById("jarHistoryDrawer")).show();
+
+        const resp = await fetch(`/api/savings/jars/${categoryId}/history`);
+        if (!resp.ok) {
+            document.getElementById("jar-history-tbody").innerHTML =
+                '<tr><td colspan="4" class="text-center text-danger py-3">Failed to load history.</td></tr>';
+            return;
+        }
+
+        const data = await resp.json();
+        document.getElementById("jar-history-balance").textContent =
+            `Current balance: $${data.balance.toFixed(2)}`;
+
+        // Stats strip
+        const dark = document.body.classList.contains("dark-mode");
+        document.getElementById("jar-stats-strip").innerHTML = `
+            <div class="text-center flex-fill p-1 rounded" style="background:${dark?'#2a2a45':'#eef0fb'};">
+                <div style="color:${dark?'#aaa':'#858796'};">Avg deposit/mo</div>
+                <div class="fw-bold text-primary">+$${data.avg_deposit.toFixed(2)}</div>
+            </div>
+            <div class="text-center flex-fill p-1 rounded" style="background:${dark?'#2a1a1a':'#fff8f8'};">
+                <div style="color:${dark?'#aaa':'#858796'};">Withdrawn YTD</div>
+                <div class="fw-bold amount-debit">−$${data.withdrawn_ytd.toFixed(2)}</div>
+            </div>
+            <div class="text-center flex-fill p-1 rounded" style="background:${dark?'#251f35':'#f3f0ff'};">
+                <div style="color:${dark?'#aaa':'#858796'};">Net YTD</div>
+                <div class="fw-bold" style="color:#6f42c1;">
+                    ${data.net_ytd >= 0 ? '+' : '−'}$${Math.abs(data.net_ytd).toFixed(2)}
+                </div>
+            </div>`;
+
+        // Chart
+        if (jarHistoryChartInstance) jarHistoryChartInstance.destroy();
+        const isDark = document.body.classList.contains("dark-mode");
+        jarHistoryChartInstance = new Chart(document.getElementById("jarHistoryChart"), {
+            type: "line",
+            data: {
+                labels: data.chart_labels,
+                datasets: [{
+                    data: data.chart_balances,
+                    borderColor: "#6f42c1",
+                    backgroundColor: "rgba(111,66,193,0.1)",
+                    borderWidth: 2, fill: true, tension: 0.3, pointRadius: 2,
+                }]
+            },
+            options: {
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { ticks: { callback: v => "$" + v.toFixed(0), font: { size: 10 } } },
+                    x: { ticks: { font: { size: 10 } }, grid: { display: false } }
+                },
+                maintainAspectRatio: false,
+            }
+        });
+
+        // Ledger
+        if (!data.entries.length) {
+            document.getElementById("jar-history-tbody").innerHTML =
+                '<tr><td colspan="4" class="text-center text-muted py-3">No activity for this jar.</td></tr>';
+            return;
+        }
+
+        document.getElementById("jar-history-tbody").innerHTML = data.entries.map(e => `
+            <tr>
+                <td style="white-space:nowrap;font-size:0.82rem;">${e.date}</td>
+                <td style="font-size:0.82rem;">${e.description}</td>
+                <td class="text-end ${e.amount >= 0 ? 'amount-credit' : 'amount-debit'}" style="font-size:0.82rem;">
+                    ${e.amount >= 0 ? '+' : '−'}$${Math.abs(e.amount).toFixed(2)}
+                </td>
+                <td class="text-end fw-bold" style="font-size:0.82rem;">
+                    $${e.running_balance.toFixed(2)}
+                </td>
+            </tr>`).join("");
+    }
+
+    // ── Savings CSV import ───────────────────────────────────────────────────
+    let savingsSelectedFile = null;
+
+    function handleSavingsFileSelect(file) {
+        if (!file) return;
+        savingsSelectedFile = file;
+        document.getElementById("savings-drop-label").innerHTML =
+            `<i class="bi bi-file-earmark-check text-success me-1"></i><strong>${file.name}</strong>`;
+        document.getElementById("savings-drop-zone").style.borderColor = "#198754";
+        updateSavingsImportBtn();
+    }
+
+    function handleSavingsDrop(e) {
+        e.preventDefault();
+        document.getElementById("savings-drop-zone").style.borderColor = "#dee2e6";
+        const file = e.dataTransfer.files[0];
+        if (file) {
+            document.getElementById("savings-import-file").files = e.dataTransfer.files;
+            handleSavingsFileSelect(file);
+        }
+    }
+
+    function updateSavingsImportBtn() {
+        const bank = document.getElementById("savings-import-bank").value;
+        document.getElementById("savings-import-btn").disabled = !(bank && savingsSelectedFile);
+    }
+
+    document.getElementById("savings-import-bank").addEventListener("change", updateSavingsImportBtn);
+
+    async function runSavingsImport() {
+        const bank = document.getElementById("savings-import-bank").value;
+        if (!bank || !savingsSelectedFile) return;
+
+        document.getElementById("savings-import-form-section").classList.add("d-none");
+        document.getElementById("savings-import-loading").classList.remove("d-none");
+        document.getElementById("savings-import-loading").classList.add("d-flex");
+        document.getElementById("savings-import-error").classList.add("d-none");
+
+        const formData = new FormData();
+        formData.append("file", savingsSelectedFile);
+        formData.append("bank", bank);
+
+        try {
+            const resp = await fetch("/api/savings/import", { method: "POST", body: formData });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.detail || "Import failed");
+
+            document.getElementById("sav-res-imported").textContent = data.imported;
+            document.getElementById("sav-res-dupes").textContent    = data.duplicates_skipped;
+            document.getElementById("sav-res-skipped").textContent  = data.skipped;
+
+            document.getElementById("savings-import-loading").classList.add("d-none");
+            document.getElementById("savings-import-loading").classList.remove("d-flex");
+            document.getElementById("savings-import-result").classList.remove("d-none");
+            document.getElementById("savings-import-result").classList.add("d-flex");
+
+        } catch (err) {
+            document.getElementById("savings-import-loading").classList.add("d-none");
+            document.getElementById("savings-import-loading").classList.remove("d-flex");
+            document.getElementById("savings-import-form-section").classList.remove("d-none");
+            document.getElementById("savings-import-error").classList.remove("d-none");
+            document.getElementById("savings-import-error-msg").textContent = err.message;
+        }
+    }
+
+    function resetSavingsImport() {
+        savingsSelectedFile = null;
+        document.getElementById("savings-import-file").value = "";
+        document.getElementById("savings-import-bank").value = "";
+        document.getElementById("savings-drop-label").innerHTML = 'Drag &amp; drop or <span class="text-primary">browse</span>';
+        document.getElementById("savings-drop-zone").style.borderColor = "#dee2e6";
+        document.getElementById("savings-import-btn").disabled = true;
+        document.getElementById("savings-import-form-section").classList.remove("d-none");
+        document.getElementById("savings-import-result").classList.add("d-none");
+        document.getElementById("savings-import-result").classList.remove("d-flex");
+        document.getElementById("savings-import-error").classList.add("d-none");
+    }
+</script>
 {% endblock %}

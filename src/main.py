@@ -66,6 +66,12 @@ class TransactionPatch(BaseModel):
 
 # ── Helper functions ─────────────────────────────────────────────────────────
 
+JAR_COLORS = [
+    "#4e73df", "#1cc88a", "#36b9cc", "#f6c23e",
+    "#e74a3b", "#6f42c1", "#fd7e14", "#20c997",
+    "#6610f2", "#d63384",
+]
+
 def get_available_months(db: Session) -> list[dict]:
     """
     Return a list of months that have transactions, formatted for dropdowns.
@@ -89,6 +95,38 @@ def get_current_month_str() -> str:
     today = date.today()
     return f"{today.year}-{today.month:02d}"
 
+def get_jar_balances(db: Session) -> list[dict]:
+    """
+    Calculate the current balance of every savings jar (is_savings=True category)
+    by summing all SavingsAllocation rows for that category.
+    Returns a list of dicts with: category_id, name, balance, pct, color.
+    """
+    from models import SavingsAllocation
+    savings_cats = db.query(Category).filter(Category.is_savings == True).order_by(Category.name).all()
+
+    results = []
+    total_positive = sum(
+        db.query(func.sum(SavingsAllocation.amount))
+          .filter(SavingsAllocation.category_id == cat.id)
+          .scalar() or 0
+        for cat in savings_cats
+    )
+    total_abs = abs(total_positive) if total_positive else 1
+
+    for i, cat in enumerate(savings_cats):
+        balance = db.query(func.sum(SavingsAllocation.amount))\
+                    .filter(SavingsAllocation.category_id == cat.id)\
+                    .scalar() or 0
+        balance = round(balance, 2)
+        pct = round((balance / total_abs) * 100, 1) if total_abs else 0
+        results.append({
+            "category_id": cat.id,
+            "name":        cat.name,
+            "balance":     balance,
+            "pct":         max(pct, 0),
+            "color":       JAR_COLORS[i % len(JAR_COLORS)],
+        })
+    return results
 
 def parse_month(month_str: str) -> tuple[int, int]:
     """Parse a YYYY-MM string into (year, month) integers."""
@@ -662,12 +700,81 @@ def categories_page(request: Request, db: Session = Depends(get_db)):
     })
 
 @app.get("/savings", response_class=HTMLResponse)
-def savings_page(request: Request, db: Session = Depends(get_db)):
+def savings_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    keyword: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    type: Optional[str] = None,
+    status: Optional[str] = None,
+):
     """Render the savings account management page."""
+    from models import SavingsTransaction, SavingsAllocation
+
+    query = db.query(SavingsTransaction)
+
+    if keyword:
+        query = query.filter(SavingsTransaction.description.ilike(f"%{keyword}%"))
+    if date_from:
+        query = query.filter(SavingsTransaction.date >= date_from)
+    if date_to:
+        query = query.filter(SavingsTransaction.date <= date_to)
+    if type == "deposit":
+        query = query.filter(SavingsTransaction.amount > 0)
+    elif type == "withdrawal":
+        query = query.filter(SavingsTransaction.amount < 0)
+    elif type == "interest":
+        query = query.filter(SavingsTransaction.description.ilike("%interest%"))
+    if status == "allocated":
+        query = query.filter(SavingsTransaction.is_allocated == True)
+    elif status == "unallocated":
+        query = query.filter(SavingsTransaction.is_allocated == False)
+
+    savings_transactions = query.order_by(SavingsTransaction.date.desc()).all()
+
+    all_txns = db.query(SavingsTransaction).all()
+
+    from datetime import date as date_type
+    current_year = date_type.today().year
+
+    deposits_ytd     = sum(t.amount for t in all_txns if t.amount > 0 and t.date.year == current_year)
+    withdrawals_ytd  = abs(sum(t.amount for t in all_txns if t.amount < 0 and t.date.year == current_year))
+    deposit_count    = sum(1 for t in all_txns if t.amount > 0 and t.date.year == current_year)
+    withdrawal_count = sum(1 for t in all_txns if t.amount < 0 and t.date.year == current_year)
+    account_balance  = round(sum(t.amount for t in all_txns), 2)
+
+    jar_balances = get_jar_balances(db)
+    jar_total    = round(sum(j["balance"] for j in jar_balances), 2)
+
+    total_deposits    = sum(t.amount for t in savings_transactions if t.amount > 0)
+    total_withdrawals = abs(sum(t.amount for t in savings_transactions if t.amount < 0))
+
+    from models import Account as AccountModel
+    savings_account = db.query(AccountModel).filter(
+        AccountModel.name.ilike("%etrade%") | AccountModel.name.ilike("%savings%")
+    ).first()
+
     return templates.TemplateResponse("savings.html", {
-        "request": request,
-        "active_page": "savings",
-        "uncategorized_count": get_uncategorized_count(db),
+        "request":              request,
+        "active_page":          "savings",
+        "uncategorized_count":  get_uncategorized_count(db),
+        "savings_transactions": savings_transactions,
+        "savings_account":      savings_account,
+        "jar_balances":         jar_balances,
+        "account_balance":      account_balance,
+        "jar_total":            jar_total,
+        "deposits_ytd":         round(deposits_ytd, 2),
+        "withdrawals_ytd":      round(withdrawals_ytd, 2),
+        "deposit_count":        deposit_count,
+        "withdrawal_count":     withdrawal_count,
+        "total_deposits":       round(total_deposits, 2),
+        "total_withdrawals":    round(total_withdrawals, 2),
+        "selected_keyword":     keyword or "",
+        "selected_date_from":   date_from or "",
+        "selected_date_to":     date_to or "",
+        "selected_type":        type or "",
+        "selected_status":      status or "",
     })
 
 # ── API routes ───────────────────────────────────────────────────────────────
@@ -1035,3 +1142,212 @@ def set_transaction_unexcluded(
     transaction.excluded = False
     db.commit()
     return {"message": "Transaction unexcluded", "transaction_id": transaction_id}
+
+@app.post("/api/savings/transactions")
+def create_savings_transaction(
+    body: dict,
+    db: Session = Depends(get_db),
+):
+    """Manually add a savings transaction."""
+    from models import SavingsTransaction
+    from datetime import date as date_type
+
+    try:
+        txn_date = date_type.fromisoformat(body["date"])
+        amount   = float(body["amount"])
+        desc     = str(body["description"]).strip()
+        notes    = body.get("notes")
+    except (KeyError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=f"Invalid data: {e}")
+
+    if not desc:
+        raise HTTPException(status_code=400, detail="Description is required")
+
+    txn = SavingsTransaction(
+        date=txn_date, amount=amount, description=desc,
+        notes=notes, is_allocated=False,
+    )
+    db.add(txn)
+    db.commit()
+    db.refresh(txn)
+
+    return {"id": txn.id, "date": str(txn.date), "amount": txn.amount,
+            "description": txn.description, "is_allocated": txn.is_allocated}
+
+@app.delete("/api/savings/transactions/{txn_id}")
+def delete_savings_transaction(txn_id: int, db: Session = Depends(get_db)):
+    """Delete a savings transaction and all its allocations (cascade)."""
+    from models import SavingsTransaction
+    txn = db.query(SavingsTransaction).filter(SavingsTransaction.id == txn_id).first()
+    if not txn:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    db.delete(txn)
+    db.commit()
+    return {"message": f"Savings transaction {txn_id} deleted"}
+
+@app.get("/api/savings/jars/{category_id}/history")
+def get_jar_history(category_id: int, db: Session = Depends(get_db)):
+    """
+    Return full history for a single savings jar (category).
+    Includes running balance, stats, and monthly chart data.
+    """
+    from models import SavingsAllocation, SavingsTransaction
+    from datetime import date as date_type
+    import calendar
+    from datetime import datetime
+
+    cat = db.query(Category).filter(Category.id == category_id).first()
+    if not cat:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    allocs = (
+        db.query(SavingsAllocation)
+          .join(SavingsTransaction, SavingsAllocation.savings_transaction_id == SavingsTransaction.id)
+          .filter(SavingsAllocation.category_id == category_id)
+          .order_by(SavingsTransaction.date.asc())
+          .all()
+    )
+
+    running = 0.0
+    entries = []
+    for a in allocs:
+        running += a.amount
+        entries.append({
+            "date":            str(a.savings_transaction.date),
+            "description":     a.savings_transaction.description,
+            "amount":          round(a.amount, 2),
+            "running_balance": round(running, 2),
+        })
+
+    current_balance  = round(running, 2)
+    entries_display  = list(reversed(entries))
+
+    current_year     = date_type.today().year
+    ytd_allocs       = [a for a in allocs if a.savings_transaction.date.year == current_year]
+    withdrawn_ytd    = abs(sum(a.amount for a in ytd_allocs if a.amount < 0))
+    deposited_ytd    = sum(a.amount for a in ytd_allocs if a.amount > 0)
+    net_ytd          = deposited_ytd - withdrawn_ytd
+
+    deposit_months = {}
+    for a in allocs:
+        if a.amount > 0:
+            key = (a.savings_transaction.date.year, a.savings_transaction.date.month)
+            deposit_months[key] = deposit_months.get(key, 0) + a.amount
+    avg_deposit = round(sum(deposit_months.values()) / len(deposit_months), 2) if deposit_months else 0.0
+
+    today          = date_type.today()
+    chart_labels   = []
+    chart_balances = []
+    for i in range(11, -1, -1):
+        mo  = (today.month - i - 1) % 12 + 1
+        yr  = today.year - ((i - today.month + 1 + 12) // 12)
+        last_day = calendar.monthrange(yr, mo)[1]
+        cutoff   = date_type(yr, mo, last_day)
+        bal = sum(a.amount for a in allocs if a.savings_transaction.date <= cutoff)
+        chart_labels.append(datetime(yr, mo, 1).strftime("%b %y"))
+        chart_balances.append(round(bal, 2))
+
+    return {
+        "category_id":    category_id,
+        "name":           cat.name,
+        "balance":        current_balance,
+        "avg_deposit":    avg_deposit,
+        "withdrawn_ytd":  round(withdrawn_ytd, 2),
+        "net_ytd":        round(net_ytd, 2),
+        "chart_labels":   chart_labels,
+        "chart_balances": chart_balances,
+        "entries":        entries_display,
+    }
+
+@app.post("/api/savings/import")
+async def import_savings_transactions(
+    file: UploadFile = File(...),
+    bank: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Import savings transactions from a CSV file."""
+    from models import SavingsTransaction, Account as AccountModel
+    import tempfile, os, csv as csvlib
+    from datetime import datetime as dt
+
+    if not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only CSV files are supported")
+
+    SAVINGS_FORMATS = {
+        "etrade": {
+            "date_col":        "Date",
+            "description_col": "Description",
+            "amount_col":      "Amount",
+            "date_format":     "%m/%d/%Y",
+        },
+        "becu": {
+            "date_col":        "Date",
+            "description_col": "Description",
+            "amount_col":      "Amount",
+            "date_format":     "%m/%d/%Y",
+        },
+    }
+
+    if bank not in SAVINGS_FORMATS:
+        raise HTTPException(status_code=400, detail=f"Unknown bank '{bank}' for savings import")
+
+    fmt      = SAVINGS_FORMATS[bank]
+    contents = await file.read()
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp:
+        tmp.write(contents)
+        tmp_path = tmp.name
+
+    try:
+        account = db.query(AccountModel).filter(AccountModel.name == bank).first()
+        if not account:
+            account = AccountModel(name=bank, type="savings")
+            db.add(account)
+            db.commit()
+            db.refresh(account)
+
+        imported = skipped = duplicates_skipped = 0
+
+        with open(tmp_path, newline="", encoding="utf-8-sig") as csvfile:
+            reader = csvlib.DictReader(csvfile)
+            reader.fieldnames = [f.strip().strip('"') for f in reader.fieldnames]
+
+            for row in reader:
+                row = {k: v.strip().strip('"') for k, v in row.items()}
+                if not row.get(fmt["date_col"], "").strip():
+                    skipped += 1
+                    continue
+                try:
+                    txn_date = dt.strptime(row[fmt["date_col"]].strip(), fmt["date_format"]).date()
+                    amount   = float(row[fmt["amount_col"]].replace(",", "").replace("$", ""))
+                    desc     = row[fmt["description_col"]].strip()
+                except (ValueError, KeyError):
+                    skipped += 1
+                    continue
+
+                exists = db.query(SavingsTransaction).filter(
+                    SavingsTransaction.date        == txn_date,
+                    SavingsTransaction.amount      == amount,
+                    SavingsTransaction.description == desc,
+                ).first()
+                if exists:
+                    duplicates_skipped += 1
+                    continue
+
+                txn = SavingsTransaction(
+                    date=txn_date, amount=amount, description=desc,
+                    is_allocated=False, account_id=account.id,
+                )
+                db.add(txn)
+                imported += 1
+
+        db.commit()
+
+    finally:
+        os.unlink(tmp_path)
+
+    return {
+        "imported":           imported,
+        "duplicates_skipped": duplicates_skipped,
+        "skipped":            skipped,
+    }
