@@ -951,6 +951,21 @@ def toggle_category_is_income(
         "is_income": category.is_income,
     }
 
+@app.put("/api/categories/{category_id}/is_savings")
+def toggle_category_is_savings(
+    category_id: int,
+    db: Session = Depends(get_db),
+):
+    """Toggle the is_savings flag on a category."""
+    category = db.query(Category).filter(Category.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    category.is_savings = not category.is_savings
+    db.commit()
+    return {
+        "category_id": category_id,
+        "is_savings": category.is_savings,
+    }
 
 @app.put("/api/categories/{category_id}/budget")
 def update_category_budget(
