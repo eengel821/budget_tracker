@@ -661,6 +661,14 @@ def categories_page(request: Request, db: Session = Depends(get_db)):
         "uncategorized_count": get_uncategorized_count(db),
     })
 
+@app.get("/savings", response_class=HTMLResponse)
+def savings_page(request: Request, db: Session = Depends(get_db)):
+    """Render the savings account management page."""
+    return templates.TemplateResponse("savings.html", {
+        "request": request,
+        "active_page": "savings",
+        "uncategorized_count": get_uncategorized_count(db),
+    })
 
 # ── API routes ───────────────────────────────────────────────────────────────
 

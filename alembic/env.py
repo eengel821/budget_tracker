@@ -10,6 +10,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from models import Base
+from models import Base, Account, Category, Transaction, SavingsTransaction, SavingsAllocation, AllocationTemplate, AllocationTemplateItem
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
