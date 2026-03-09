@@ -251,7 +251,7 @@
             <table class="table table-hover mb-0" id="transactions-table">
                 <thead>
                     <tr>
-                        <th class="sortable" data-col="0" data-type="date">
+                        <th class="sortable" data-col="0" data-type="date" style="width:110px; white-space:nowrap;">
                             Date <i class="bi bi-arrow-down-up sort-icon text-muted small"></i>
                         </th>
                         <th class="sortable" data-col="1" data-type="str">
@@ -267,7 +267,7 @@
                         <th class="sortable text-end" data-col="5" data-type="num">
                             Amount <i class="bi bi-arrow-down-up sort-icon text-muted small"></i>
                         </th>
-                        <th style="width:50px;"></th>
+                        <th style="width:40px;"></th>
                     </tr>
                 </thead>
                 <tbody id="tbody">
@@ -402,7 +402,7 @@
                                     </li>
                                     {% else %}
                                     <li>
-                                        <a class="dropdown-item small text-warning" href="#"
+                                        <a class="dropdown-item small text-danger" href="#"
                                             onclick="excludeTransaction({{ t.id }}, '{{ t.description|replace("'", "\\\'") }}'); return false;">
                                             <i class="bi bi-eye-slash me-2"></i>Exclude from Reports
                                         </a>

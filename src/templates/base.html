@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Budget Tracker{% endblock %}</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>">
 
     <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
     <!-- Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>">
 
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -27,21 +27,58 @@
         body.dark-mode .card-header { background:#2a2a45 !important; border-color:#444 !important; color:#e0e0e0 !important; }
         body.dark-mode .card-footer { background:#2a2a45 !important; border-color:#444 !important; }
         body.dark-mode .table { color:#e0e0e0 !important; }
-        body.dark-mode .table-hover tbody tr:hover { background:#2e2e4a !important; }
-        body.dark-mode .table-light { background:#2a2a45 !important; color:#e0e0e0 !important; }
-        body.dark-mode .table thead th { background:#2a2a45 !important; color:#aaa !important; }
+        body.dark-mode .table td, body.dark-mode .table th { border-color:#3a3a55 !important; background-color:#22223b !important; color:#e0e0e0 !important; }
+        body.dark-mode .table-hover tbody tr:hover td { background-color:#2e2e4a !important; color:#e0e0e0 !important; }
+        body.dark-mode .amount-debit, body.dark-mode .table .amount-debit, body.dark-mode td.amount-debit  { color:#f87171 !important; }
+        body.dark-mode .amount-credit, body.dark-mode .table .amount-credit, body.dark-mode td.amount-credit { color:#4ade80 !important; }
+        body.dark-mode .budget-over, body.dark-mode .table .budget-over, body.dark-mode td.budget-over   { color:#f87171 !important; }
+        body.dark-mode .budget-under, body.dark-mode .table .budget-under, body.dark-mode td.budget-under  { color:#4ade80 !important; }
+        body.dark-mode .budget-warn, body.dark-mode .table .budget-warn, body.dark-mode td.budget-warn   { color:#fbbf24 !important; }
+        body.dark-mode .fw-semibold   { color:#e0e0e0 !important; }
+        body.dark-mode .table-light, body.dark-mode .table-light th, body.dark-mode .table-light td { background:#2a2a45 !important; color:#ccc !important; border-color:#3a3a55 !important; }
+        body.dark-mode .table thead th { background:#2a2a45 !important; color:#aaa !important; border-color:#3a3a55 !important; }
+        body.dark-mode .table tfoot tr { background:#1e1e35 !important; color:#e0e0e0 !important; }
+        body.dark-mode .table tfoot td { border-color:#3a3a55 !important; }
+        /* Budget page dividers and special rows */
+        body.dark-mode .divider-monthly td { background:#1e2a4a !important; color:#93c5fd !important; border-color:#3b5998 !important; }
+        body.dark-mode .divider-savings td { background:#3a2a1a !important; color:#fcd38d !important; border-color:#7a5a2a !important; }
+        body.dark-mode .savings-row td { background:#2a2218 !important; }
+        body.dark-mode .table-hover tbody tr.savings-row:hover td { background:#352b1e !important; }
+        body.dark-mode .table tbody tr.subtotal-row td { background:#1e1e35 !important; color:#e0e0e0 !important; }
+        body.dark-mode .table tbody tr.subtotal-row.savings-row td { background:#2e2416 !important; }
+        body.dark-mode .footer-expenses td { background:#1a1a30 !important; color:#e0e0e0 !important; }
+        body.dark-mode .footer-net td { background:#1e1b4b !important; }
+        /* Category page */
+        body.dark-mode .cat-detail-panel td { background:#1e1e35 !important; }
+        body.dark-mode .mini-stat { background:#2a2a45 !important; color:#e0e0e0 !important; }
+        body.dark-mode .mini-stat-lbl { color:#aaa !important; }
+        body.dark-mode .table tbody tr.cat-expand-row:hover td { background:#2e2e4a !important; }
+        /* Badges and misc */
+        body.dark-mode .badge.bg-light { background:#444 !important; color:#e0e0e0 !important; }
+        body.dark-mode .badge-reimburse { background:#4a1a1a !important; color:#fca5a5 !important; }
+        body.dark-mode .cat-badge-ontrack  { background:#064e3b !important; color:#6ee7b7 !important; }
+        body.dark-mode .cat-badge-over     { background:#4a1a1a !important; color:#fca5a5 !important; }
+        body.dark-mode .cat-badge-watch    { background:#4a3200 !important; color:#fcd38d !important; }
+        body.dark-mode .cat-badge-nobudget { background:#333 !important; color:#aaa !important; }
+        body.dark-mode .list-group-item { background:#22223b !important; color:#e0e0e0 !important; border-color:#3a3a55 !important; }
         body.dark-mode .form-select, body.dark-mode .form-control { background:#2a2a45 !important; color:#e0e0e0 !important; border-color:#555 !important; }
         body.dark-mode .btn-outline-secondary { color:#aaa !important; border-color:#666 !important; }
         body.dark-mode .btn-outline-secondary:hover { background:#444 !important; }
-        body.dark-mode .stat-card { background:#2a2a45 !important; color:#e0e0e0 !important; }
+        body.dark-mode .stat-card { color:#e0e0e0 !important; }
+        body.dark-mode .stat-card.stat-bg-blue,   body.dark-mode .stat-bg-blue   { background: linear-gradient(135deg, #1e3a7a, #152a5e) !important; }
+        body.dark-mode .stat-card.stat-bg-green,  body.dark-mode .stat-bg-green  { background: linear-gradient(135deg, #0d5c3a, #084028) !important; }
+        body.dark-mode .stat-card.stat-bg-red,    body.dark-mode .stat-bg-red    { background: linear-gradient(135deg, #7a2020, #5a1515) !important; }
+        body.dark-mode .stat-card.stat-bg-orange, body.dark-mode .stat-bg-orange { background: linear-gradient(135deg, #7a4a00, #5a3500) !important; }
         body.dark-mode .dropdown-menu { background:#22223b !important; border-color:#444 !important; }
         body.dark-mode .dropdown-item { color:#e0e0e0 !important; }
         body.dark-mode .dropdown-item:hover { background:#2e2e4a !important; }
         body.dark-mode .alert { background:#2a2a45 !important; border-color:#555 !important; color:#e0e0e0 !important; }
-        body.dark-mode .badge.bg-light { background:#444 !important; color:#e0e0e0 !important; }
         body.dark-mode .text-muted { color:#aaa !important; }
         body.dark-mode .table-secondary { background:#2e2e4a !important; }
         body.dark-mode input[type="date"] { color-scheme: dark; }
+        body.dark-mode .progress { background:#3a3a55 !important; }
+        body.dark-mode .offcanvas { background:#22223b !important; color:#e0e0e0 !important; }
+        body.dark-mode .offcanvas-header { border-color:#3a3a55 !important; }
         #dark-toggle i { font-size: 1rem; }
     </style>
 </head>
@@ -107,12 +144,25 @@
             const dark = document.body.classList.toggle("dark-mode");
             document.getElementById("dark-icon").className = dark ? "bi bi-sun-fill" : "bi bi-moon-fill";
             localStorage.setItem("darkMode", dark ? "1" : "0");
+            applyChartDefaults(dark);
         }
+
+        function applyChartDefaults(dark) {
+            if (typeof Chart === "undefined") return;
+            const gridColor  = dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)";
+            const tickColor  = dark ? "#aaa" : "#666";
+            const legendColor = dark ? "#e0e0e0" : "#666";
+            Chart.defaults.color = tickColor;
+            Chart.defaults.scale.grid.color = gridColor;
+            Chart.defaults.plugins.legend.labels.color = legendColor;
+        }
+
         if (localStorage.getItem("darkMode") === "1") {
             document.body.classList.add("dark-mode");
             document.addEventListener("DOMContentLoaded", () => {
                 const icon = document.getElementById("dark-icon");
                 if (icon) icon.className = "bi bi-sun-fill";
+                applyChartDefaults(true);
             });
         }
     </script>
@@ -134,6 +184,13 @@
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Apply chart defaults before page charts are built -->
+    <script>
+        if (localStorage.getItem("darkMode") === "1") {
+            applyChartDefaults(true);
+        }
+    </script>
 
     {% block scripts %}{% endblock %}
 </body>

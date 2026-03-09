@@ -29,6 +29,20 @@
 <!-- ── Summary stat tiles ─────────────────────────────────────────────────── -->
 <div class="row g-3 mb-4">
     <div class="col-6 col-md">
+        <div class="stat-card stat-bg-green" style="min-height:100px;">
+            <div class="stat-label"><i class="bi bi-arrow-down-circle me-1"></i>Total Income</div>
+            <div class="stat-value">+${{ "%.2f"|format(total_income) }}</div>
+            <div class="stat-sub">received this month</div>
+        </div>
+    </div>
+    <div class="col-6 col-md">
+        <div class="stat-card {% if net_total >= 0 %}stat-bg-green{% else %}stat-bg-red{% endif %}" style="min-height:100px;">
+            <div class="stat-label"><i class="bi bi-calculator me-1"></i>Net Total</div>
+            <div class="stat-value">{% if net_total >= 0 %}+{% else %}-{% endif %}${{ "%.2f"|format(net_total|abs) }}</div>
+            <div class="stat-sub">income minus expenses</div>
+        </div>
+    </div>
+    <div class="col-6 col-md">
         <div class="stat-card stat-bg-blue" style="min-height:100px;">
             <div class="stat-label"><i class="bi bi-bullseye me-1"></i>Budgeted Expenses</div>
             <div class="stat-value">${{ "%.2f"|format(total_budgeted) }}</div>
@@ -47,20 +61,6 @@
             <div class="stat-label"><i class="bi bi-piggy-bank me-1"></i>Remaining Budget</div>
             <div class="stat-value">{% if total_remaining < 0 %}-{% endif %}${{ "%.2f"|format(total_remaining|abs) }}</div>
             <div class="stat-sub">{% if total_remaining >= 0 %}under budget ✓{% else %}over budget{% endif %}</div>
-        </div>
-    </div>
-    <div class="col-6 col-md">
-        <div class="stat-card stat-bg-green" style="min-height:100px;">
-            <div class="stat-label"><i class="bi bi-arrow-down-circle me-1"></i>Total Income</div>
-            <div class="stat-value">+${{ "%.2f"|format(total_income) }}</div>
-            <div class="stat-sub">received this month</div>
-        </div>
-    </div>
-    <div class="col-6 col-md">
-        <div class="stat-card {% if net_total >= 0 %}stat-bg-green{% else %}stat-bg-red{% endif %}" style="min-height:100px;">
-            <div class="stat-label"><i class="bi bi-calculator me-1"></i>Net Total</div>
-            <div class="stat-value">{% if net_total >= 0 %}+{% else %}-{% endif %}${{ "%.2f"|format(net_total|abs) }}</div>
-            <div class="stat-sub">income minus expenses</div>
         </div>
     </div>
 </div>
@@ -82,7 +82,7 @@
                     {% for row in income_rows %}
                     {% set pct = (row.spent / total_inc.val * 100) if total_inc.val > 0 else 0 %}
                     {% set diff = row.spent - row.budgeted %}
-                    <div class="p-3 rounded" style="background:var(--bs-light); border-left: 4px solid #1cc88a;">
+                    <div class="p-3 rounded income-cat-card">
                         <div class="d-flex justify-content-between align-items-start">
                             <div>
                                 <div class="fw-semibold small">{{ row.category }}</div>
@@ -177,14 +177,14 @@
                         </td>
                         <td class="text-end text-muted">${{ "%.2f"|format(row.budgeted) }}</td>
                         <td class="text-end amount-debit">${{ "%.2f"|format(row.spent) }}</td>
-                        <td class="text-end {% if remaining < 0 %}budget-over{% elif pct is not none and pct > 80 %}budget-warn{% else %}budget-under{% endif %}">
+                        <td class="text-end {% if pct is not none and pct > 110 %}budget-over{% elif pct is not none and pct > 100 %}budget-warn{% else %}budget-under{% endif %}">
                             {% if remaining < 0 %}-${{ "%.2f"|format(remaining|abs) }}
                             {% else %}${{ "%.2f"|format(remaining) }}{% endif %}
                         </td>
                         <td>
                             {% if pct is not none %}
                             <div class="progress" style="height:7px;">
-                                <div class="progress-bar {% if pct >= 100 %}bg-danger{% elif pct >= 80 %}bg-warning{% else %}bg-success{% endif %}"
+                                <div class="progress-bar {% if pct > 110 %}bg-danger{% elif pct > 100 %}bg-warning{% else %}bg-success{% endif %}"
                                     style="width: {{ [pct, 100]|min }}%"></div>
                             </div>
                             <small class="text-muted">{{ "%.0f"|format(pct) }}% used</small>
@@ -316,6 +316,8 @@
 
 {% block scripts %}
 <style>
+    .income-cat-card { background: var(--bs-light); border-left: 4px solid #1cc88a; }
+    body.dark-mode .income-cat-card { background: #0d3d28 !important; border-left-color: #1cc88a; }
     .divider-monthly td {
         background: #eef2ff; color: #4338ca; font-weight: 700;
         font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em;

@@ -106,7 +106,8 @@
                                     value="{{ '%.2f'|format(category.monthly_budget or 0) }}"
                                     min="0"
                                     step="0.01"
-                                    placeholder="0.00">
+                                    placeholder="0.00"
+                                    oninput="enableSaveBtn({{ category.id }})">
                             </div>
                         </td>
                         <td class="text-center align-middle">
@@ -121,8 +122,10 @@
                         </td>
                         <td>
                             <button
-                                class="btn btn-sm btn-success w-100"
-                                onclick="saveBudget({{ category.id }}, '{{ category.name }}')">
+                                id="save-btn-{{ category.id }}"
+                                class="btn btn-sm btn-outline-secondary w-100"
+                                onclick="saveBudget({{ category.id }}, '{{ category.name }}')"
+                                disabled>
                                 <i class="bi bi-check-lg me-1"></i>Save
                             </button>
                         </td>
@@ -149,6 +152,18 @@
     </div>
 </div>
 
+<!-- Save toast -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index:9999;">
+    <div id="save-toast" class="toast align-items-center text-white bg-success border-0" role="alert" data-bs-autohide="true" data-bs-delay="4000">
+        <div class="d-flex">
+            <div class="toast-body">
+                <i class="bi bi-check-circle me-2"></i><span id="save-toast-msg"></span>
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -164,11 +179,16 @@
         });
 
         if (response.ok) {
-            // Flash the row green briefly to confirm save
             const row = document.getElementById("row-" + categoryId);
-            row.style.transition = "background-color 0.2s";
+            row.style.transition = "background-color 0.3s";
             row.style.backgroundColor = "#d1fae5";
-            setTimeout(() => row.style.backgroundColor = "", 1000);
+            setTimeout(() => { row.style.backgroundColor = ""; }, 1500);
+            const btn = document.getElementById("save-btn-" + categoryId);
+            if (btn) {
+                btn.disabled = true;
+                btn.className = "btn btn-sm btn-outline-secondary w-100";
+            }
+            showToast(`Saved budget for <strong>${categoryName}</strong>`);
             updateTotal();
         } else {
             alert(`Failed to save budget for '${categoryName}'. Please try again.`);
@@ -198,16 +218,35 @@
         }
 
         if (failed === 0) {
-            // Flash all rows green
             document.querySelectorAll("tbody tr").forEach(row => {
-                row.style.transition = "background-color 0.2s";
+                row.style.transition = "background-color 0.3s";
                 row.style.backgroundColor = "#d1fae5";
-                setTimeout(() => row.style.backgroundColor = "", 1000);
+                setTimeout(() => { row.style.backgroundColor = ""; }, 1200);
             });
+            document.querySelectorAll("button[id^='save-btn-']").forEach(btn => {
+                btn.disabled = true;
+                btn.className = "btn btn-sm btn-outline-secondary w-100";
+            });
+            showToast(`<strong>${success} budgets saved</strong> successfully`);
             updateTotal();
         } else {
             alert(`${success} budgets saved, ${failed} failed. Please try again.`);
         }
+    }
+
+    function enableSaveBtn(categoryId) {
+        const btn = document.getElementById("save-btn-" + categoryId);
+        if (btn) {
+            btn.disabled = false;
+            btn.className = "btn btn-sm btn-success w-100";
+        }
+    }
+
+    function showToast(msg) {
+        document.getElementById("save-toast-msg").innerHTML = msg;
+        const toastEl = document.getElementById("save-toast");
+        const toast = bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 4000 });
+        toast.show();
     }
 
     async function addCategory() {
@@ -267,7 +306,8 @@
                         <input type="number" class="form-control"
                             id="budget-${data.id}"
                             value="${data.monthly_budget.toFixed(2)}"
-                            min="0" step="0.01" placeholder="0.00">
+                            min="0" step="0.01" placeholder="0.00"
+                            oninput="enableSaveBtn(${data.id})">
                     </div>
                 </td>
                 <td class="text-center align-middle">
@@ -278,8 +318,9 @@
                     </div>
                 </td>
                 <td>
-                    <button class="btn btn-sm btn-success w-100"
-                        onclick="saveBudget(${data.id}, '${data.name}')">
+                    <button id="save-btn-${data.id}" class="btn btn-sm btn-outline-secondary w-100"
+                        onclick="saveBudget(${data.id}, '${data.name}')"
+                        disabled>
                         <i class="bi bi-check-lg me-1"></i>Save
                     </button>
                 </td>

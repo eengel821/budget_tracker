@@ -11,7 +11,7 @@ IMPORT_FOLDER = Path("../csv_imports")
 FORMATS_FILE = Path("../formats.json")
 
 # --- Diagnostics ---
-DB_PATH = Path("./budget.db").resolve()
+DB_PATH = (Path(__file__).resolve().parent.parent / "data" / "budget.db")
 print(f"Database location: {DB_PATH}")
 if DB_PATH.exists():
     print(f"Database file found ✓ (size: {DB_PATH.stat().st_size} bytes)")
