@@ -1239,8 +1239,9 @@ def get_jar_history(category_id: int, db: Session = Depends(get_db)):
     chart_labels   = []
     chart_balances = []
     for i in range(11, -1, -1):
-        mo  = (today.month - i - 1) % 12 + 1
-        yr  = today.year - ((i - today.month + 1 + 12) // 12)
+        total_months = today.year * 12 + today.month - i - 1
+        yr  = total_months // 12
+        mo  = total_months % 12 + 1
         last_day = calendar.monthrange(yr, mo)[1]
         cutoff   = date_type(yr, mo, last_day)
         bal = sum(a.amount for a in allocs if a.savings_transaction.date <= cutoff)
@@ -1350,4 +1351,319 @@ async def import_savings_transactions(
         "imported":           imported,
         "duplicates_skipped": duplicates_skipped,
         "skipped":            skipped,
+    }
+
+@app.get("/api/savings/transactions/{txn_id}/allocations")
+def get_savings_allocations(txn_id: int, db: Session = Depends(get_db)):
+    """
+    Return existing allocations for a transaction so the modal can pre-fill.
+    Also returns all savings jars with current balances for the left panel.
+    """
+    from models import SavingsTransaction, SavingsAllocation
+
+    txn = db.query(SavingsTransaction).filter(SavingsTransaction.id == txn_id).first()
+    if not txn:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    # Current allocations for this transaction
+    existing = db.query(SavingsAllocation)\
+                 .filter(SavingsAllocation.savings_transaction_id == txn_id)\
+                 .all()
+
+    allocations = [
+        {"category_id": a.category_id, "amount": round(a.amount, 2)}
+        for a in existing
+    ]
+
+    # All savings jars with current balances for left panel reference
+    jar_balances = get_jar_balances(db)
+
+    return {
+        "txn_id":      txn_id,
+        "amount":      round(txn.amount, 2),
+        "description": txn.description,
+        "date":        str(txn.date),
+        "is_allocated": txn.is_allocated,
+        "allocations": allocations,
+        "jars":        jar_balances,
+    }
+
+
+@app.put("/api/savings/transactions/{txn_id}/allocations")
+def save_savings_allocations(
+    txn_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+):
+    """
+    Replace all allocations for a transaction with the submitted set.
+    Marks the transaction as allocated if amounts balance within $0.01.
+    body expects: { "allocations": [{"category_id": int, "amount": float}, ...] }
+    """
+    from models import SavingsTransaction, SavingsAllocation
+
+    txn = db.query(SavingsTransaction).filter(SavingsTransaction.id == txn_id).first()
+    if not txn:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    raw = body.get("allocations", [])
+    if not isinstance(raw, list):
+        raise HTTPException(status_code=400, detail="allocations must be a list")
+
+    # Validate each item
+    items = []
+    for item in raw:
+        try:
+            cat_id = int(item["category_id"])
+            amount = round(float(item["amount"]), 2)
+        except (KeyError, ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Each allocation needs category_id and amount")
+        if amount == 0:
+            continue  # skip zero rows silently
+        cat = db.query(Category).filter(Category.id == cat_id, Category.is_savings == True).first()
+        if not cat:
+            raise HTTPException(status_code=400, detail=f"Category {cat_id} is not a savings jar")
+        items.append({"category_id": cat_id, "amount": amount})
+
+    # Delete existing allocations for this transaction
+    db.query(SavingsAllocation)\
+      .filter(SavingsAllocation.savings_transaction_id == txn_id)\
+      .delete()
+
+    # Insert new allocations
+    for item in items:
+        alloc = SavingsAllocation(
+            savings_transaction_id=txn_id,
+            category_id=item["category_id"],
+            amount=item["amount"],
+        )
+        db.add(alloc)
+
+    # Mark allocated if total matches transaction amount within $0.01
+    total_allocated = round(sum(i["amount"] for i in items), 2)
+    txn.is_allocated = abs(total_allocated - round(txn.amount, 2)) < 0.01
+
+    db.commit()
+
+    return {
+        "txn_id":       txn_id,
+        "is_allocated": txn.is_allocated,
+        "total_allocated": total_allocated,
+        "allocations":  items,
+    }
+
+
+@app.get("/api/savings/templates/default")
+def get_default_template(db: Session = Depends(get_db)):
+    """
+    Return the default allocation template items for pre-filling the deposit modal.
+    If no default template exists, returns an empty list.
+    """
+    from models import AllocationTemplate, AllocationTemplateItem
+
+    template = db.query(AllocationTemplate)\
+                 .filter(AllocationTemplate.is_default == True)\
+                 .first()
+
+    if not template:
+        return {"template_id": None, "name": None, "items": []}
+
+    items = [
+        {"category_id": item.category_id, "amount": round(item.amount, 2)}
+        for item in template.items
+    ]
+
+    return {
+        "template_id": template.id,
+        "name":        template.name,
+        "items":       items,
+    }
+
+
+@app.put("/api/savings/templates/default")
+def save_default_template(body: dict, db: Session = Depends(get_db)):
+    """
+    Save or update the default allocation template.
+    Replaces the existing default template entirely.
+    body expects: { "name": str, "items": [{"category_id": int, "amount": float}, ...] }
+    """
+    from models import AllocationTemplate, AllocationTemplateItem
+
+    name  = str(body.get("name", "Default Template")).strip() or "Default Template"
+    raw   = body.get("items", [])
+
+    items = []
+    for item in raw:
+        try:
+            cat_id = int(item["category_id"])
+            amount = round(float(item["amount"]), 2)
+        except (KeyError, ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Each item needs category_id and amount")
+        if amount == 0:
+            continue
+        items.append({"category_id": cat_id, "amount": amount})
+
+    # Find or create the default template
+    template = db.query(AllocationTemplate)\
+                 .filter(AllocationTemplate.is_default == True)\
+                 .first()
+
+    if template:
+        template.name = name
+        # Delete existing items
+        db.query(AllocationTemplateItem)\
+          .filter(AllocationTemplateItem.template_id == template.id)\
+          .delete()
+    else:
+        template = AllocationTemplate(name=name, is_default=True)
+        db.add(template)
+        db.flush()  # get template.id
+
+    for item in items:
+        db.add(AllocationTemplateItem(
+            template_id=template.id,
+            category_id=item["category_id"],
+            amount=item["amount"],
+        ))
+
+    db.commit()
+
+    return {
+        "template_id": template.id,
+        "name":        template.name,
+        "items":       items,
+    }
+
+@app.patch("/api/savings/transactions/{txn_id}")
+def edit_savings_transaction(txn_id: int, body: dict, db: Session = Depends(get_db)):
+    """Edit date, description, amount, and/or notes on a savings transaction."""
+    from models import SavingsTransaction
+    from datetime import date as date_type
+
+    txn = db.query(SavingsTransaction).filter(SavingsTransaction.id == txn_id).first()
+    if not txn:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    try:
+        if "date" in body:
+            txn.date = date_type.fromisoformat(body["date"])
+        if "description" in body:
+            desc = str(body["description"]).strip()
+            if not desc:
+                raise HTTPException(status_code=400, detail="Description cannot be empty")
+            txn.description = desc
+        if "amount" in body:
+            txn.amount = round(float(body["amount"]), 2)
+        if "notes" in body:
+            txn.notes = body["notes"] or None
+    except (ValueError, TypeError) as e:
+        raise HTTPException(status_code=400, detail=f"Invalid data: {e}")
+
+    db.commit()
+    db.refresh(txn)
+
+    return {
+        "id":           txn.id,
+        "date":         str(txn.date),
+        "description":  txn.description,
+        "amount":       txn.amount,
+        "notes":        txn.notes,
+        "is_allocated": txn.is_allocated,
+    }
+
+
+@app.get("/api/savings/jars")
+def get_savings_jars(db: Session = Depends(get_db)):
+    """Return current balance for all savings jars. Used by the rebalance modal."""
+    jars = get_jar_balances(db)
+    return {"jars": jars}
+
+
+@app.post("/api/savings/rebalance")
+def rebalance_jars(body: dict, db: Session = Depends(get_db)):
+    """
+    Create a $0 rebalance transaction and apply the provided allocation adjustments.
+    body expects: { "allocations": [{"category_id": int, "amount": float}, ...] }
+    Each amount is the *delta* (positive = add to jar, negative = remove from jar).
+    The sum of all amounts must equal 0 (it's a rebalance, not a deposit/withdrawal).
+    """
+    from models import SavingsTransaction, SavingsAllocation
+    from datetime import date as date_type
+
+    raw = body.get("allocations", [])
+    if not raw:
+        raise HTTPException(status_code=400, detail="No allocations provided")
+
+    items = []
+    for item in raw:
+        try:
+            cat_id = int(item["category_id"])
+            amount = round(float(item["amount"]), 2)
+        except (KeyError, ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Each allocation needs category_id and amount")
+        if amount != 0:
+            items.append({"category_id": cat_id, "amount": amount})
+
+    # Validate that deltas net to zero (rebalance doesn't change account total)
+    net = round(sum(i["amount"] for i in items), 2)
+    if abs(net) > 0.01:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Rebalance allocations must net to $0.00 (got {net:+.2f})"
+        )
+
+    # Create a $0 rebalance transaction
+    txn = SavingsTransaction(
+        date=date_type.today(),
+        amount=0.0,
+        description="Jar Rebalance",
+        notes="Automatic rebalance",
+        is_allocated=True,
+    )
+    db.add(txn)
+    db.flush()  # get txn.id
+
+    for item in items:
+        db.add(SavingsAllocation(
+            savings_transaction_id=txn.id,
+            category_id=item["category_id"],
+            amount=item["amount"],
+        ))
+
+    db.commit()
+    db.refresh(txn)
+
+    return {
+        "id":          txn.id,
+        "date":        str(txn.date),
+        "description": txn.description,
+        "amount":      txn.amount,
+        "allocations": items,
+    }
+
+
+@app.get("/api/savings/summary")
+def get_savings_summary(db: Session = Depends(get_db)):
+    """
+    Return the four stat tile values for the savings page.
+    Used for live tile updates after allocation changes without a full page reload.
+    """
+    from models import SavingsTransaction
+    from datetime import date as date_type
+
+    all_txns     = db.query(SavingsTransaction).all()
+    current_year = date_type.today().year
+
+    account_balance  = round(sum(t.amount for t in all_txns), 2)
+    deposits_ytd     = round(sum(t.amount for t in all_txns if t.amount > 0 and t.date.year == current_year), 2)
+    withdrawals_ytd  = round(abs(sum(t.amount for t in all_txns if t.amount < 0 and t.date.year == current_year)), 2)
+
+    jar_balances = get_jar_balances(db)
+    jar_total    = round(sum(j["balance"] for j in jar_balances), 2)
+
+    return {
+        "account_balance":  account_balance,
+        "jar_total":        jar_total,
+        "deposits_ytd":     deposits_ytd,
+        "withdrawals_ytd":  withdrawals_ytd,
     }
