@@ -15,7 +15,7 @@
         </small>
     </div>
     <div class="d-flex gap-2">
-        <button class="btn btn-sm btn-outline-secondary" type="button"
+        <button class="btn btn-sm btn-primary" type="button"
             data-bs-toggle="offcanvas" data-bs-target="#importSavingsDrawer">
             <i class="bi bi-upload me-1"></i>Import CSV
         </button>
@@ -154,12 +154,12 @@
                 {{ jar_balances|length }} jar{{ 's' if jar_balances|length != 1 else '' }}
             </span>
         </span>
-        <button class="btn btn-sm btn-outline-secondary" onclick="openRebalanceModal()">
+        <button class="btn btn-sm btn-primary" onclick="openRebalanceModal()">
             <i class="bi bi-arrow-left-right me-1"></i>Rebalance Jars
         </button>
     </div>
     <div class="card-body pb-2">
-        <div class="row g-2">
+        <div class="row g-2" id="jar-tiles-grid">
             {% for jar in jar_balances %}
             <div class="col-6 col-md-3 col-lg-2">
                 <div class="jar-tile {% if jar.balance < 0 %}jar-tile-negative{% endif %}" onclick="openJarHistory({{ jar.category_id }}, '{{ jar.name }}')">
@@ -327,6 +327,7 @@
                 <tbody id="savings-tbody">
                     {% for txn in savings_transactions %}
                     <tr id="srow-{{ txn.id }}"
+                        data-desc="{{ txn.description|e }}"
                         class="{% if not txn.is_allocated %}savings-unallocated-row{% endif %}{% if txn.amount == 0 and 'Rebalance' in txn.description %} savings-rebalance-row{% endif %}">
 
                         <td class="align-middle">
@@ -391,16 +392,16 @@
                                         data-bs-toggle="dropdown">⋯</button>
                                 <ul class="dropdown-menu dropdown-menu-end" style="font-size:0.85rem;">
                                     <li>
-                                        <a class="dropdown-item" href="#"
-                                           onclick="openAllocateModal({{ txn.id }}, {{ txn.amount }}, '{{ txn.description|replace("'", "\\'") }}', {{ txn.is_allocated|tojson }}); return false;">
+                                        <a class="dropdown-item" href="javascript:void(0)"
+                                           onclick="openAllocateModal({{ txn.id }}, {{ txn.amount }}, this.closest('tr').dataset.desc, {{ txn.is_allocated|tojson }})">
                                             <i class="bi bi-distribute-vertical me-2"></i>
                                             {% if txn.is_allocated %}Edit Allocations{% else %}Allocate{% endif %}
                                         </a>
                                     </li>
                                     <li><hr class="dropdown-divider"></li>
                                     <li>
-                                        <a class="dropdown-item text-danger" href="#"
-                                           onclick="deleteSavingsTransaction({{ txn.id }}, '{{ txn.description|replace("'", "\\'") }}'); return false;">
+                                        <a class="dropdown-item text-danger" href="javascript:void(0)"
+                                           onclick="deleteSavingsTransaction({{ txn.id }}, this.closest('tr').dataset.desc)">
                                             <i class="bi bi-trash me-2"></i>Delete
                                         </a>
                                     </li>
@@ -779,9 +780,9 @@
         window.location.href = "/savings#filter-section";
     }
 
-    // After page load, scroll to filter section only if there are active filter params
+    // After page load, if filter-section is in the hash, scroll to it and open filters
     window.addEventListener("DOMContentLoaded", () => {
-        if (window.location.hash === "#filter-section" && window.location.search.length > 1) {
+        if (window.location.hash === "#filter-section") {
             const el = document.getElementById("filter-section");
             if (el) {
                 el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -880,6 +881,7 @@
         const tr = document.createElement("tr");
         tr.id = `srow-${txn.id}`;
         tr.className = "savings-unallocated-row";
+        tr.dataset.desc = txn.description;
         tr.innerHTML = `
             <td class="align-middle">
                 <input type="checkbox" class="form-check-input row-checkbox" data-id="${txn.id}"
@@ -903,15 +905,15 @@
                             data-bs-toggle="dropdown">⋯</button>
                     <ul class="dropdown-menu dropdown-menu-end" style="font-size:0.85rem;">
                         <li>
-                            <a class="dropdown-item" href="#"
-                               onclick="openAllocateModal(${txn.id}, ${txn.amount}, '${txn.description.replace(/'/g,"\\'")}', false); return false;">
+                            <a class="dropdown-item" href="javascript:void(0)"
+                               onclick="openAllocateModal(${txn.id}, ${txn.amount}, this.closest('tr').dataset.desc, false)">
                                 <i class="bi bi-distribute-vertical me-2"></i>Allocate
                             </a>
                         </li>
                         <li><hr class="dropdown-divider"></li>
                         <li>
-                            <a class="dropdown-item text-danger" href="#"
-                               onclick="deleteSavingsTransaction(${txn.id}, '${txn.description.replace(/'/g,"\\'")}'); return false;">
+                            <a class="dropdown-item text-danger" href="javascript:void(0)"
+                               onclick="deleteSavingsTransaction(${txn.id}, this.closest('tr').dataset.desc)">
                                 <i class="bi bi-trash me-2"></i>Delete
                             </a>
                         </li>
@@ -1026,7 +1028,7 @@
         }
         updateBulkDelete();
         updateFooterTotals();
-        refreshStatTiles();
+        refreshStatTiles(); refreshJarTiles();
     }
 
     // ── Stat tile live update ────────────────────────────────────────────────
@@ -1065,7 +1067,41 @@
         } catch(e) { /* silent — tiles update on next full load */ }
     }
 
-    // ── Delete savings transaction ───────────────────────────────────────────
+    // ── Jar tile live update ─────────────────────────────────────────────────
+    async function refreshJarTiles() {
+        try {
+            const resp = await fetch("/api/savings/jars");
+            if (!resp.ok) return;
+            const { jars } = await resp.json();
+            const grid = document.getElementById("jar-tiles-grid");
+            if (!grid) return;
+            grid.innerHTML = jars.map(jar => {
+                const neg     = jar.balance < 0;
+                const pct     = Math.min(jar.pct, 100);
+                const barFill = neg
+                    ? `style="width:100%;background:#e74a3b;"`
+                    : `style="width:${pct}%;background:${jar.color};"`;
+                const amtSign = neg ? "−" : "";
+                const amtVal  = "$" + Math.abs(jar.balance).toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2});
+                const safeName = jar.name.replace(/'/g, "\\'");
+                return `
+                <div class="col-6 col-md-3 col-lg-2">
+                    <div class="jar-tile ${neg ? "jar-tile-negative" : ""}"
+                         onclick="openJarHistory(${jar.category_id}, '${safeName}')">
+                        <div class="jar-tile-name">${jar.name}</div>
+                        <div class="jar-tile-amount ${neg ? "amount-debit" : ""}">${amtSign}${amtVal}</div>
+                        <div class="jar-bar mt-1">
+                            <div class="jar-bar-fill" ${barFill}></div>
+                        </div>
+                        <small class="text-muted" style="font-size:0.68rem;">
+                            ${jar.pct.toFixed(1)}% of savings
+                            ${neg ? '<span class="text-danger ms-1">⚠ negative</span>' : ""}
+                        </small>
+                    </div>
+                </div>`;
+            }).join("");
+        } catch(e) { console.warn("refreshJarTiles error:", e); }
+    }
     async function deleteSavingsTransaction(txnId, description) {
         if (!confirm(`Delete "${description}"?\n\nThis will also remove all jar allocations for this transaction. This cannot be undone.`)) return;
 
@@ -1074,7 +1110,7 @@
             const row = document.getElementById(`srow-${txnId}`);
             row.style.transition = "opacity 0.3s";
             row.style.opacity    = "0";
-            setTimeout(() => { row.remove(); updateFooterTotals(); refreshStatTiles(); }, 300);
+            setTimeout(() => { row.remove(); updateFooterTotals(); refreshStatTiles(); refreshJarTiles(); }, 300);
         } else {
             alert("Failed to delete transaction. Please try again.");
         }
@@ -1344,7 +1380,9 @@
             const tResp = await fetch("/api/savings/templates/default");
             if (tResp.ok) {
                 const tData = await tResp.json();
-                if (tData.items.length > 0) {
+                const templateTotal = tData.items.reduce((s, i) => s + i.amount, 0);
+                const amountMatches = Math.abs(templateTotal - allocTxnAmount) < 0.01;
+                if (tData.items.length > 0 && amountMatches) {
                     document.getElementById("alloc-template-notice").classList.remove("d-none");
                     document.getElementById("alloc-template-name").textContent = tData.name || "Default Template";
                     for (const item of tData.items) {
@@ -1542,7 +1580,7 @@
         allocFromAdd = false; // saved — don't delete on modal close
         bootstrap.Modal.getInstance(document.getElementById("allocateModal")).hide();
         updateLedgerRow(allocTxnId, result.is_allocated, items);
-        refreshStatTiles();
+        refreshStatTiles(); refreshJarTiles();
     }
 
     function updateLedgerRow(txnId, isAllocated, items) {
@@ -1637,6 +1675,7 @@
             document.getElementById("savings-import-loading").classList.remove("d-flex");
             document.getElementById("savings-import-result").classList.remove("d-none");
             document.getElementById("savings-import-result").classList.add("d-flex");
+            refreshStatTiles(); refreshJarTiles();
 
         } catch (err) {
             document.getElementById("savings-import-loading").classList.add("d-none");

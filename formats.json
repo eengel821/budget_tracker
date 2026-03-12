@@ -34,5 +34,12 @@
         "debit_col": null,
         "credit_col": null,
         "date_format": "%m/%d/%Y"
+    },
+    "etrade": {
+    "date_col":        "TransactionDate",
+    "description_col": "Description",
+    "amount_col":      "Amount",
+    "date_format":     "%m/%d/%y",
+    "header_marker":   "TransactionDate"
     }
 }

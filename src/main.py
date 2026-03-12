@@ -278,6 +278,28 @@ def dashboard(request: Request, db: Session = Depends(get_db), month: Optional[s
             Transaction.excluded == False,
         ).order_by(Transaction.date.desc()).limit(10).all()
 
+    # ── Savings data ─────────────────────────────────────────────────────────
+    from models import SavingsTransaction
+    import calendar as cal_mod
+
+    all_savings_txns    = db.query(SavingsTransaction).all()
+    savings_balance     = round(sum(t.amount for t in all_savings_txns), 2)
+    jar_balances_dash   = get_jar_balances(db)
+    unallocated_count   = sum(1 for t in all_savings_txns if not t.is_allocated)
+
+    today_d = date.today()
+    savings_growth_labels   = []
+    savings_growth_balances = []
+    for i in range(11, -1, -1):
+        total_mo = today_d.year * 12 + today_d.month - i - 1
+        g_yr = total_mo // 12
+        g_mo = total_mo % 12 + 1
+        last_day = cal_mod.monthrange(g_yr, g_mo)[1]
+        cutoff   = date(g_yr, g_mo, last_day)
+        bal = round(sum(t.amount for t in all_savings_txns if t.date <= cutoff), 2)
+        savings_growth_labels.append(datetime(g_yr, g_mo, 1).strftime("%b %y"))
+        savings_growth_balances.append(bal)
+
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "active_page": "dashboard",
@@ -301,6 +323,11 @@ def dashboard(request: Request, db: Session = Depends(get_db), month: Optional[s
         "trend_net_cashflow": trend_net_cashflow,
         "recent_transactions": recent_transactions,
         "uncategorized_count": get_uncategorized_count(db),
+        "savings_balance":          savings_balance,
+        "jar_balances_dash":        jar_balances_dash,
+        "unallocated_count":        unallocated_count,
+        "savings_growth_labels":    savings_growth_labels,
+        "savings_growth_balances":  savings_growth_balances,
     })
 
 
@@ -1276,16 +1303,18 @@ async def import_savings_transactions(
 
     SAVINGS_FORMATS = {
         "etrade": {
-            "date_col":        "Date",
+            "date_col":        "TransactionDate",
             "description_col": "Description",
             "amount_col":      "Amount",
-            "date_format":     "%m/%d/%Y",
+            "date_format":     "%m/%d/%y",
+            "header_marker":   "TransactionDate",  # skip preamble rows until this header is found
         },
         "becu": {
             "date_col":        "Date",
             "description_col": "Description",
             "amount_col":      "Amount",
             "date_format":     "%m/%d/%Y",
+            "header_marker":   None,
         },
     }
 
@@ -1310,37 +1339,51 @@ async def import_savings_transactions(
         imported = skipped = duplicates_skipped = 0
 
         with open(tmp_path, newline="", encoding="utf-8-sig") as csvfile:
-            reader = csvlib.DictReader(csvfile)
-            reader.fieldnames = [f.strip().strip('"') for f in reader.fieldnames]
+            raw_lines = csvfile.readlines()
 
-            for row in reader:
-                row = {k: v.strip().strip('"') for k, v in row.items()}
-                if not row.get(fmt["date_col"], "").strip():
-                    skipped += 1
-                    continue
-                try:
-                    txn_date = dt.strptime(row[fmt["date_col"]].strip(), fmt["date_format"]).date()
-                    amount   = float(row[fmt["amount_col"]].replace(",", "").replace("$", ""))
-                    desc     = row[fmt["description_col"]].strip()
-                except (ValueError, KeyError):
-                    skipped += 1
-                    continue
+        # Skip preamble rows if format has a header_marker
+        header_marker = fmt.get("header_marker")
+        if header_marker:
+            start_idx = next(
+                (i for i, l in enumerate(raw_lines) if l.strip().startswith(header_marker)),
+                0
+            )
+            raw_lines = raw_lines[start_idx:]
 
-                exists = db.query(SavingsTransaction).filter(
-                    SavingsTransaction.date        == txn_date,
-                    SavingsTransaction.amount      == amount,
-                    SavingsTransaction.description == desc,
-                ).first()
-                if exists:
-                    duplicates_skipped += 1
-                    continue
+        # Drop blank lines
+        raw_lines = [l for l in raw_lines if l.strip()]
 
-                txn = SavingsTransaction(
-                    date=txn_date, amount=amount, description=desc,
-                    is_allocated=False, account_id=account.id,
-                )
-                db.add(txn)
-                imported += 1
+        import io
+        reader = csvlib.DictReader(io.StringIO("".join(raw_lines)))
+
+        for row in reader:
+            row = {k.strip(): v.strip().strip('"') for k, v in row.items() if k}
+            if not row.get(fmt["date_col"], "").strip():
+                skipped += 1
+                continue
+            try:
+                txn_date = dt.strptime(row[fmt["date_col"]].strip(), fmt["date_format"]).date()
+                amount   = float(row[fmt["amount_col"]].replace(",", "").replace("$", ""))
+                desc     = row[fmt["description_col"]].strip()
+            except (ValueError, KeyError):
+                skipped += 1
+                continue
+
+            exists = db.query(SavingsTransaction).filter(
+                SavingsTransaction.date        == txn_date,
+                SavingsTransaction.amount      == amount,
+                SavingsTransaction.description == desc,
+            ).first()
+            if exists:
+                duplicates_skipped += 1
+                continue
+
+            txn = SavingsTransaction(
+                date=txn_date, amount=amount, description=desc,
+                is_allocated=False, account_id=account.id,
+            )
+            db.add(txn)
+            imported += 1
 
         db.commit()
 
