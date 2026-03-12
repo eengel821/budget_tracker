@@ -63,6 +63,13 @@ class TransactionPatch(BaseModel):
     description: Optional[str] = None
     notes: Optional[str] = None
 
+class SplitItem(BaseModel):
+    amount: float
+    category_id: Optional[int] = None
+
+class SplitRequest(BaseModel):
+    splits: list[SplitItem]
+
 
 # ── Helper functions ─────────────────────────────────────────────────────────
 
@@ -372,21 +379,27 @@ def transactions_page(
 
     show_excluded = show_excluded_param == "1"
     if not show_excluded:
-        query = query.filter(Transaction.excluded == False)
+        # Include split children (excluded=True but have parent_id) alongside normal rows
+        query = query.filter(
+            (Transaction.excluded == False) |
+            (Transaction.parent_id != None)
+        )
 
     transactions = query.order_by(Transaction.date.desc()).all()
 
+    # Totals use only top-level transactions to avoid double-counting split children
     # Expenses: all transactions in non-income or uncategorized
     # Income: only positive transactions in is_income categories
     income_cat_ids = {
         c.id for c in db.query(Category).filter(Category.is_income == True).all()
     }
+    top_level = [t for t in transactions if t.parent_id is None]
     total_spent = sum(
-        t.amount for t in transactions
+        t.amount for t in top_level
         if t.category_id is None or t.category_id not in income_cat_ids
     )
     total_income = sum(
-        t.amount for t in transactions
+        t.amount for t in top_level
         if t.amount > 0 and t.category_id in income_cat_ids
     )
     net_total = total_income + total_spent  # total_spent is negative
@@ -887,6 +900,104 @@ def delete_transaction(
     db.commit()
 
     return {"message": f"Transaction {transaction_id} deleted"}
+
+
+@app.post("/api/transactions/{transaction_id}/split")
+def split_transaction(
+    transaction_id: int,
+    body: SplitRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Split a transaction into multiple child transactions by category and amount.
+    - Validates that split amounts sum to the parent total.
+    - If the parent is already split, existing children are deleted first (re-split).
+    - Children are marked excluded=True so they don't double-count in budget totals.
+    - Parent is marked is_split=True.
+    """
+    parent = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+    if not parent:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    if parent.parent_id is not None:
+        raise HTTPException(status_code=400, detail="Cannot split a child transaction")
+
+    if len(body.splits) < 2:
+        raise HTTPException(status_code=400, detail="At least 2 split lines are required")
+
+    split_total = round(sum(s.amount for s in body.splits), 2)
+    parent_total = round(abs(parent.amount), 2)
+    if abs(split_total - parent_total) > 0.01:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Split amounts ({split_total}) must equal transaction total ({parent_total})"
+        )
+
+    # If already split, delete existing children first
+    if parent.is_split:
+        db.query(Transaction).filter(Transaction.parent_id == transaction_id).delete()
+
+    # Create child transactions
+    for item in body.splits:
+        sign = 1 if parent.amount >= 0 else -1
+        child = Transaction(
+            date=parent.date,
+            amount=round(sign * abs(item.amount), 2),
+            description=parent.description,
+            notes=None,
+            excluded=True,          # excluded so budget totals use the parent only
+            is_split=False,
+            parent_id=parent.id,
+            account_id=parent.account_id,
+            category_id=item.category_id,
+        )
+        db.add(child)
+
+    parent.is_split = True
+    db.commit()
+    db.refresh(parent)
+
+    children = db.query(Transaction).filter(Transaction.parent_id == transaction_id).all()
+    return {
+        "message": "Transaction split successfully",
+        "parent_id": parent.id,
+        "is_split": parent.is_split,
+        "splits": [
+            {
+                "id": c.id,
+                "amount": c.amount,
+                "category_id": c.category_id,
+                "category_name": c.category.name if c.category else None,
+            }
+            for c in children
+        ],
+    }
+
+
+@app.delete("/api/transactions/{transaction_id}/split")
+def unsplit_transaction(
+    transaction_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    Remove all split children from a transaction and reset it to a normal transaction.
+    """
+    parent = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+    if not parent:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    if not parent.is_split:
+        raise HTTPException(status_code=400, detail="Transaction is not split")
+
+    deleted = db.query(Transaction).filter(Transaction.parent_id == transaction_id).delete()
+    parent.is_split = False
+    db.commit()
+
+    return {
+        "message": f"Split removed, {deleted} child transactions deleted",
+        "parent_id": parent.id,
+        "is_split": False,
+    }
 
 
 @app.post("/api/import")

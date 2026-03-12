@@ -5,7 +5,7 @@ Defines the Account, Category, Transaction, and Savings tables.
 """
 
 from sqlalchemy import Boolean, Column, Date, Float, ForeignKey, Integer, String
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 
 from base import Base
 
@@ -45,11 +45,16 @@ class Transaction(Base):
     description = Column(String, nullable=False)
     notes       = Column(String, nullable=True)
     excluded    = Column(Boolean, default=False, nullable=False)
+    is_split    = Column(Boolean, default=False, nullable=False)
+    parent_id   = Column(Integer, ForeignKey("transactions.id"), nullable=True)
     account_id  = Column(Integer, ForeignKey("accounts.id"), nullable=True)
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
 
     account  = relationship("Account", back_populates="transactions")
     category = relationship("Category", back_populates="transactions")
+    splits   = relationship("Transaction",
+                            backref=backref("parent", remote_side="Transaction.id"),
+                            foreign_keys="Transaction.parent_id")
 
 
 class SavingsTransaction(Base):
