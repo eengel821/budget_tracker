@@ -60,6 +60,7 @@ main {
 .stat-bg-green   { background: linear-gradient(135deg, #1cc88a, #13855c); }
 .stat-bg-red     { background: linear-gradient(135deg, #e74a3b, #be2617); }
 .stat-bg-orange  { background: linear-gradient(135deg, #f6c23e, #dda20a); }
+.stat-bg-purple  { background: linear-gradient(135deg, #6f42c1, #5a32a3); }
 
 /* ── Tables ── */
 .table thead th {

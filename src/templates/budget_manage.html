@@ -73,6 +73,7 @@
                         <th>Category</th>
                         <th style="width: 220px;">Monthly Budget</th>
                         <th style="width: 100px;">Income?</th>
+                        <th style="width: 100px;">Savings?</th>
                         <th style="width: 100px;"></th>
                     </tr>
                 </thead>
@@ -118,6 +119,16 @@
                                     id="income-{{ category.id }}"
                                     {% if category.is_income %}checked{% endif %}
                                     onchange="toggleIncome({{ category.id }}, this)">
+                            </div>
+                        </td>
+                        <td class="text-center align-middle">
+                            <div class="form-check form-switch d-flex justify-content-center">
+                                <input
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    id="savings-{{ category.id }}"
+                                    {% if category.is_savings %}checked{% endif %}
+                                    onchange="toggleSavings({{ category.id }}, this)">
                             </div>
                         </td>
                         <td>
@@ -317,6 +328,13 @@
                             onchange="toggleIncome(${data.id}, this)">
                     </div>
                 </td>
+                <td class="text-center align-middle">
+                    <div class="form-check form-switch d-flex justify-content-center">
+                        <input class="form-check-input" type="checkbox"
+                            id="savings-${data.id}"
+                            onchange="toggleSavings(${data.id}, this)">
+                    </div>
+                </td>
                 <td>
                     <button id="save-btn-${data.id}" class="btn btn-sm btn-outline-secondary w-100"
                         onclick="saveBudget(${data.id}, '${data.name}')"
@@ -402,6 +420,16 @@
         });
         if (!response.ok) {
             alert("Failed to update income flag. Please try again.");
+            checkbox.checked = !checkbox.checked; // revert
+        }
+    }
+
+    async function toggleSavings(categoryId, checkbox) {
+        const response = await fetch(`/api/categories/${categoryId}/is_savings`, {
+            method: "PUT",
+        });
+        if (!response.ok) {
+            alert("Failed to update savings flag. Please try again.");
             checkbox.checked = !checkbox.checked; // revert
         }
     }

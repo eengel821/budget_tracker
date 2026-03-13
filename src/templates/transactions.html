@@ -272,7 +272,9 @@
                 </thead>
                 <tbody id="tbody">
                     {% for t in transactions %}
-                    <tr id="row-{{ t.id }}" {% if t.excluded %}class="table-secondary" style="opacity:0.5;"{% endif %}>
+                    {% if t.parent_id is none %}
+                    <tr id="row-{{ t.id }}" data-desc="{{ t.description|e }}"
+                        {% if t.excluded %}class="table-secondary" style="opacity:0.5;"{% endif %}>
 
                         <!-- Date -->
                         <td class="text-muted small align-middle" data-val="{{ t.date }}">{{ t.date }}</td>
@@ -293,6 +295,15 @@
                                 value="{{ t.description }}"
                                 onblur="saveField('desc', {{ t.id }})"
                                 onkeydown="handleFieldKey(event, 'desc', {{ t.id }})">
+                            {% if t.is_split %}
+                            <br>
+                            <span class="badge bg-light text-primary border border-primary ms-0 mt-1"
+                                  style="font-size:0.68rem; cursor:pointer;"
+                                  onclick="toggleSplitRows({{ t.id }})">
+                                <i class="bi bi-scissors me-1"></i>Split ({{ t.splits|length }})
+                                <i class="bi bi-chevron-down ms-1" id="split-chevron-{{ t.id }}" style="font-size:0.6rem;"></i>
+                            </span>
+                            {% endif %}
                         </td>
 
                         <!-- Category -->
@@ -386,12 +397,20 @@
                                     </li>
                                     <li><hr class="dropdown-divider"></li>
                                     <li>
-                                        <a class="dropdown-item small text-muted" href="#"
-                                            style="opacity:0.45; pointer-events:none; cursor:default;"
-                                            title="Coming soon">
-                                            <i class="bi bi-scissors me-2"></i>Split Transaction
+                                        <a class="dropdown-item small" href="javascript:void(0)"
+                                            onclick="openSplitModal({{ t.id }}, {{ t.amount }}, '{{ t.description|e }}')">
+                                            <i class="bi bi-scissors me-2 text-primary"></i>
+                                            {% if t.is_split %}Re-split Transaction{% else %}Split Transaction{% endif %}
                                         </a>
                                     </li>
+                                    {% if t.is_split %}
+                                    <li>
+                                        <a class="dropdown-item small text-danger" href="javascript:void(0)"
+                                            onclick="removeSplit({{ t.id }}, '{{ t.description|e }}')">
+                                            <i class="bi bi-x-circle me-2"></i>Remove Split
+                                        </a>
+                                    </li>
+                                    {% endif %}
                                     <li><hr class="dropdown-divider"></li>
                                     {% if t.excluded %}
                                     <li>
@@ -419,6 +438,26 @@
                             </div>
                         </td>
                     </tr>
+                    {% if t.is_split %}
+                    {% for child in t.splits %}
+                    <tr id="row-{{ child.id }}" class="split-child-row d-none"
+                        data-parent="{{ t.id }}" style="background:#f8f6ff;">
+                        <td class="text-muted small align-middle ps-4" style="border-left: 3px solid #6f42c1;">
+                            <i class="bi bi-arrow-return-right text-muted" style="font-size:0.7rem;"></i>
+                        </td>
+                        <td class="align-middle ps-2 text-muted small" colspan="2">
+                            {{ child.category.name if child.category else '— uncategorized —' }}
+                        </td>
+                        <td class="text-muted small align-middle">{{ child.account.name if child.account else "—" }}</td>
+                        <td></td>
+                        <td class="text-end align-middle small {% if child.amount < 0 %}amount-debit{% else %}amount-credit{% endif %}">
+                            ${{ "%.2f"|format(child.amount|abs) }}
+                        </td>
+                        <td></td>
+                    </tr>
+                    {% endfor %}
+                    {% endif %}
+                    {% endif %}
                     {% endfor %}
                 </tbody>
                 <tfoot class="table-light">
@@ -462,7 +501,55 @@
     .sortable.desc .sort-icon::before { content: "\F286"; }
     .sortable.asc  .sort-icon,
     .sortable.desc .sort-icon { color: #4f46e5 !important; }
+    .split-child-row td { font-size: 0.85rem; }
 </style>
+
+<!-- ── Split Transaction Modal ───────────────────────────────────────────── -->
+<div class="modal fade" id="splitModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:520px;">
+        <div class="modal-content">
+            <div class="modal-header" style="background:linear-gradient(135deg,#6f42c1,#5a32a3);color:#fff;">
+                <div>
+                    <h5 class="modal-title fw-bold mb-0"><i class="bi bi-scissors me-2"></i>Split Transaction</h5>
+                    <small id="split-modal-desc" style="opacity:0.85;"></small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between align-items-center mb-3 p-2 rounded"
+                     style="background:#f3f0ff;">
+                    <span class="text-muted small">Transaction Total</span>
+                    <span class="fw-bold" id="split-total-display"></span>
+                </div>
+                <table class="table table-sm mb-2" id="split-rows-table">
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th class="text-end" style="width:130px;">Amount <span class="text-muted fw-normal" style="font-size:0.75rem;">(positive)</span></th>
+                            <th style="width:36px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="split-rows-body"></tbody>
+                </table>
+                <button class="btn btn-sm btn-outline-secondary w-100 mb-3" onclick="addSplitRow()">
+                    <i class="bi bi-plus me-1"></i>Add Line
+                </button>
+                <div class="d-flex justify-content-between align-items-center p-2 rounded"
+                     id="split-remainder-bar"
+                     style="background:#f8f9fa; font-size:0.85rem;">
+                    <span class="text-muted">Remaining to allocate</span>
+                    <span class="fw-bold" id="split-remainder"></span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" id="split-save-btn" onclick="submitSplit()" disabled>
+                    <i class="bi bi-scissors me-1"></i>Save Split
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 <script>
     // ── Filter panel toggle ──────────────────────────────────────────────────
 
@@ -661,6 +748,142 @@
         row.style.transition = "opacity 0.3s";
         row.style.opacity    = "0";
         setTimeout(() => row.remove(), 300);
+    }
+
+    // ── Split transaction ─────────────────────────────────────────────────────
+
+    let splitTxnId     = null;
+    let splitTxnAmount = 0;
+    let splitTxnSign   = 1;   // +1 for credit/income, -1 for debit
+    let splitRowCount  = 0;
+
+    const SPLIT_CATEGORIES = [
+        {% for c in categories %}
+        { "id": {{ c.id }}, "name": {{ c.name | tojson }} }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    function openSplitModal(txnId, amount, description) {
+        splitTxnId     = txnId;
+        splitTxnAmount = Math.abs(amount);
+        splitTxnSign   = amount < 0 ? -1 : 1;
+        splitRowCount  = 0;
+
+        document.getElementById("split-modal-desc").textContent  = description;
+        document.getElementById("split-total-display").textContent =
+            "$" + splitTxnAmount.toFixed(2);
+
+        const tbody = document.getElementById("split-rows-body");
+        tbody.innerHTML = "";
+        addSplitRow();
+        addSplitRow();
+        updateSplitValidation();
+
+        bootstrap.Modal.getOrCreateInstance(document.getElementById("splitModal")).show();
+    }
+
+    function categoryOptions(selectedId) {
+        let opts = `<option value="">— Uncategorized —</option>`;
+        for (const c of SPLIT_CATEGORIES) {
+            const sel = c.id === selectedId ? "selected" : "";
+            opts += `<option value="${c.id}" ${sel}>${c.name}</option>`;
+        }
+        return opts;
+    }
+
+    function addSplitRow(categoryId = null, amount = "") {
+        const id   = ++splitRowCount;
+        const tbody = document.getElementById("split-rows-body");
+        const tr   = document.createElement("tr");
+        tr.id      = `split-row-${id}`;
+        tr.innerHTML = `
+            <td>
+                <select class="form-select form-select-sm split-cat" data-row="${id}">
+                    ${categoryOptions(categoryId)}
+                </select>
+            </td>
+            <td>
+                <input type="number" step="0.01" min="0.01"
+                       class="form-control form-control-sm text-end split-amt"
+                       data-row="${id}" value="${amount}"
+                       oninput="if(this.value.startsWith('-')) this.value = this.value.slice(1); updateSplitValidation()"
+                       placeholder="0.00">
+            </td>
+            <td class="text-center">
+                <button class="btn btn-sm btn-link text-danger p-0"
+                        onclick="removeSplitRow(${id})" title="Remove">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </td>`;
+        tbody.appendChild(tr);
+        updateSplitValidation();
+    }
+
+    function removeSplitRow(id) {
+        const rows = document.querySelectorAll("#split-rows-body tr");
+        if (rows.length <= 2) return; // minimum 2 lines
+        document.getElementById(`split-row-${id}`)?.remove();
+        updateSplitValidation();
+    }
+
+    function updateSplitValidation() {
+        const amts     = [...document.querySelectorAll(".split-amt")].map(i => parseFloat(i.value) || 0);
+        const total    = amts.reduce((s, v) => s + v, 0);
+        const remain   = splitTxnAmount - total;
+        const balanced = Math.abs(remain) < 0.01;
+        const rowCount = document.querySelectorAll("#split-rows-body tr").length;
+
+        const remEl  = document.getElementById("split-remainder");
+        const barEl  = document.getElementById("split-remainder-bar");
+        remEl.textContent = (remain >= 0 ? "$" : "-$") + Math.abs(remain).toFixed(2);
+        remEl.className   = balanced ? "fw-bold text-success" : (remain < 0 ? "fw-bold text-danger" : "fw-bold text-warning");
+        barEl.style.background = balanced ? "#d1fae5" : (remain < 0 ? "#fde8e8" : "#f8f9fa");
+
+        document.getElementById("split-save-btn").disabled = !(balanced && rowCount >= 2);
+    }
+
+    async function submitSplit() {
+        const rows = [...document.querySelectorAll("#split-rows-body tr")];
+        const splits = rows.map(row => ({
+            amount:      splitTxnSign * (parseFloat(row.querySelector(".split-amt").value) || 0),
+            category_id: parseInt(row.querySelector(".split-cat").value) || null,
+        }));
+
+        const resp = await fetch(`/api/transactions/${splitTxnId}/split`, {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ splits }),
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json();
+            alert(err.detail || "Failed to save split.");
+            return;
+        }
+
+        bootstrap.Modal.getInstance(document.getElementById("splitModal")).hide();
+        location.reload();
+    }
+
+    function toggleSplitRows(parentId) {
+        const children = document.querySelectorAll(`.split-child-row[data-parent="${parentId}"]`);
+        const chevron  = document.getElementById(`split-chevron-${parentId}`);
+        const hidden   = children[0]?.classList.contains("d-none");
+        children.forEach(r => r.classList.toggle("d-none", !hidden));
+        if (chevron) chevron.style.transform = hidden ? "rotate(180deg)" : "";
+    }
+
+    async function removeSplit(parentId, description) {
+        if (!confirm(`Remove split from "${description}"?\n\nThe transaction will revert to a single entry. This cannot be undone.`)) return;
+
+        const resp = await fetch(`/api/transactions/${parentId}/split`, { method: "DELETE" });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            alert(err.detail || "Failed to remove split.");
+            return;
+        }
+
+        location.reload();
     }
 </script>
 

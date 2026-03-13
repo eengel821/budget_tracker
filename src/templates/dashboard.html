@@ -24,28 +24,45 @@
 
 <!-- Stat tiles -->
 <div class="row g-3 mb-4">
-    <div class="col-12 col-sm-6 col-xl-3">
+    <div class="col-6 col-md">
         <div class="stat-card stat-bg-green">
             <div class="stat-label"><i class="bi bi-bullseye me-1"></i>Total Budgeted</div>
             <div class="stat-value">${{ "%.2f"|format(total_budgeted) }}</div>
             <div class="stat-sub">monthly expense target</div>
         </div>
     </div>
-    <div class="col-12 col-sm-6 col-xl-3">
+    <div class="col-6 col-md">
         <div class="stat-card stat-bg-blue">
             <div class="stat-label"><i class="bi bi-credit-card me-1"></i>Total Spent</div>
             <div class="stat-value">${{ "%.2f"|format(total_spent|abs) }}</div>
             <div class="stat-sub">{{ current_month_label }}</div>
         </div>
     </div>
-    <div class="col-12 col-sm-6 col-xl-3">
+    <div class="col-6 col-md">
         <div class="stat-card {% if total_remaining >= 0 %}stat-bg-green{% else %}stat-bg-red{% endif %}">
             <div class="stat-label"><i class="bi bi-piggy-bank me-1"></i>Remaining</div>
             <div class="stat-value">{% if total_remaining < 0 %}-{% endif %}${{ "%.2f"|format(total_remaining|abs) }}</div>
             <div class="stat-sub">{% if total_remaining >= 0 %}under budget ✓{% else %}over budget{% endif %}</div>
         </div>
     </div>
-    <div class="col-12 col-sm-6 col-xl-3">
+    <div class="col-6 col-md">
+        <div class="stat-card stat-bg-purple">
+            <div class="stat-label"><i class="bi bi-safe me-1"></i>Savings Balance</div>
+            <div class="stat-value">${{ "%.2f"|format(savings_balance) }}</div>
+            <div class="stat-sub">
+                <a href="/savings" class="text-white text-decoration-none" style="opacity:0.85;">
+                    {% if unallocated_count > 0 %}
+                    <span style="background:rgba(255,255,255,0.25);border-radius:0.75rem;padding:0.05rem 0.4rem;">
+                        ⚠ {{ unallocated_count }} unallocated
+                    </span>
+                    {% else %}
+                    all allocated ✓
+                    {% endif %}
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md">
         <div class="stat-card stat-bg-orange">
             <div class="stat-label"><i class="bi bi-tags me-1"></i>Needs Review</div>
             <div class="stat-value">{{ uncategorized_count }}</div>
@@ -73,6 +90,77 @@
         {% endif %}
     </div>
 </div>
+
+{% if jar_balances_dash %}
+<!-- Savings row -->
+<div class="row g-4 mb-4">
+    <div class="col-12 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-pie-chart me-2" style="color:#6f42c1;"></i>Savings by Jar</span>
+                {% if unallocated_count > 0 %}
+                <a href="/savings" class="badge text-decoration-none"
+                   style="background:#fff3cd;color:#856404;font-size:0.72rem;font-weight:500;">
+                    <i class="bi bi-exclamation-triangle me-1"></i>{{ unallocated_count }} unallocated
+                </a>
+                {% endif %}
+            </div>
+            <div class="card-body d-flex flex-column align-items-center justify-content-center">
+                <div style="position:relative;width:180px;height:180px;">
+                    <canvas id="jarDonutChart"></canvas>
+                    <div id="donut-center" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;">
+                        <div class="fw-bold" id="donut-center-value" style="font-size:1.05rem;color:#6f42c1;">${{ "%.0f"|format(savings_balance) }}</div>
+                        <div class="text-muted" id="donut-center-label" style="font-size:0.68rem;">all jars</div>
+                    </div>
+                </div>
+                <div class="mt-3 w-100" style="font-size:0.78rem;">
+                    {% for jar in jar_balances_dash %}
+                    <div class="jar-list-row d-flex justify-content-between align-items-center py-1 border-bottom"
+                         style="cursor:pointer;border-radius:0.25rem;padding-left:0.25rem;padding-right:0.25rem;"
+                         data-jar-id="{{ jar.category_id }}"
+                         data-jar-name="{{ jar.name }}"
+                         data-jar-balance="{{ jar.balance }}"
+                         data-jar-color="{{ jar.color }}"
+                         onclick="selectJar(this)">
+                        <span>
+                            <span class="d-inline-block rounded-circle me-1"
+                                  style="width:8px;height:8px;background:{{ jar.color }};"></span>
+                            {{ jar.name }}
+                        </span>
+                        <span class="fw-semibold {% if jar.balance < 0 %}text-danger{% endif %}">
+                            {% if jar.balance < 0 %}−{% endif %}${{ "%.2f"|format(jar.balance|abs) }}
+                        </span>
+                    </div>
+                    {% endfor %}
+                    <div class="jar-list-row d-flex justify-content-between align-items-center py-1 mt-1"
+                         style="cursor:pointer;border-radius:0.25rem;padding-left:0.25rem;padding-right:0.25rem;font-weight:600;"
+                         id="jar-all-row" onclick="selectAll()">
+                        <span><i class="bi bi-collection me-1 text-muted"></i>All Jars</span>
+                        <span style="color:#6f42c1;">${{ "%.2f"|format(savings_balance) }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-8">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>
+                    <i class="bi bi-graph-up me-2" style="color:#6f42c1;"></i>
+                    Savings Growth — Last 12 Months
+                </span>
+                <span id="growth-chart-label" class="badge"
+                      style="background:#e8e0f7;color:#6f42c1;font-size:0.72rem;font-weight:500;">
+                    All Jars
+                </span>
+            </div>
+            <div class="card-body" style="position:relative;height:300px;">
+                <canvas id="savingsGrowthChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <!-- Recent transactions -->
 <div class="card">
@@ -125,7 +213,172 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+    .stat-bg-purple { background: linear-gradient(135deg, #6f42c1, #5a32a3) !important; color: #fff; }
+    .jar-list-row:hover { background: #f3f0ff; }
+    .jar-list-row.active { background: #e8e0f7; }
+    body.dark-mode .jar-list-row:hover { background: #2a2240; }
+    body.dark-mode .jar-list-row.active { background: #352a52; }
+</style>
 <script>
+{% if jar_balances_dash %}
+const jarData = {{ jar_balances_dash | tojson }};
+const allGrowthLabels   = {{ savings_growth_labels   | tojson }};
+const allGrowthBalances = {{ savings_growth_balances | tojson }};
+const totalSavings = {{ savings_balance }};
+
+// ── Donut chart ──────────────────────────────────────────────────────────
+const donutChart = new Chart(document.getElementById("jarDonutChart"), {
+    type: "doughnut",
+    data: {
+        labels: jarData.map(j => j.name),
+        datasets: [{
+            data: jarData.map(j => Math.max(j.balance, 0)),
+            backgroundColor: jarData.map(j => j.color),
+            borderWidth: 2,
+            borderColor: "#fff",
+            hoverOffset: 8,
+        }]
+    },
+    options: {
+        cutout: "72%",
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                callbacks: {
+                    label: ctx => ` ${ctx.label}: $${ctx.parsed.toFixed(2)}`,
+                    title: () => '',
+                }
+            }
+        },
+        maintainAspectRatio: false,
+        onClick: (e, elements) => {
+            if (elements.length > 0) {
+                const idx = elements[0].index;
+                const row = document.querySelectorAll(".jar-list-row[data-jar-id]")[idx];
+                if (row) selectJar(row);
+            }
+        }
+    }
+});
+
+// ── Growth chart ─────────────────────────────────────────────────────────
+const growthChart = new Chart(document.getElementById("savingsGrowthChart"), {
+    type: "line",
+    data: {
+        labels: allGrowthLabels,
+        datasets: [{
+            label: "All Jars",
+            data: allGrowthBalances,
+            borderColor: "#6f42c1",
+            backgroundColor: "rgba(111,66,193,0.1)",
+            borderWidth: 2,
+            fill: true,
+            tension: 0.3,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            pointBackgroundColor: "#6f42c1",
+        }]
+    },
+    options: {
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                callbacks: {
+                    label: ctx => ` $${ctx.parsed.y.toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2})}`,
+                    title: ctx => ctx[0].label,
+                }
+            }
+        },
+        scales: {
+            y: {
+                ticks: { callback: v => "$" + v.toLocaleString() },
+                beginAtZero: false,
+                title: { display: true, text: "Balance ($)", color: "#888", font: { size: 11 } },
+            },
+            x: { grid: { display: false } }
+        },
+        maintainAspectRatio: false,
+    }
+});
+
+// ── Interaction ───────────────────────────────────────────────────────────
+let selectedJarId = null;
+
+function selectJar(row) {
+    const jarId   = parseInt(row.dataset.jarId);
+    const jarName = row.dataset.jarName;
+    const jarBal  = parseFloat(row.dataset.jarBalance);
+    const jarColor= row.dataset.jarColor;
+
+    // Toggle off if already selected
+    if (selectedJarId === jarId) { selectAll(); return; }
+    selectedJarId = jarId;
+
+    // Highlight row
+    document.querySelectorAll(".jar-list-row").forEach(r => r.classList.remove("active"));
+    row.classList.add("active");
+
+    // Update donut center
+    document.getElementById("donut-center-value").textContent =
+        (jarBal < 0 ? "−" : "") + "$" + Math.abs(jarBal).toLocaleString("en-US", {minimumFractionDigits:0, maximumFractionDigits:0});
+    document.getElementById("donut-center-label").textContent = jarName;
+
+    // Dim other donut slices
+    const idx = jarData.findIndex(j => j.category_id === jarId);
+    donutChart.data.datasets[0].backgroundColor = jarData.map((j, i) =>
+        i === idx ? j.color : j.color + "33"
+    );
+    donutChart.update();
+
+    // Update growth chart label
+    document.getElementById("growth-chart-label").textContent = jarName;
+
+    // Fetch jar-specific history and update line chart
+    fetch(`/api/savings/jars/${jarId}/history`)
+        .then(r => r.json())
+        .then(data => {
+            growthChart.data.labels = data.chart_labels;
+            growthChart.data.datasets[0].label = jarName;
+            growthChart.data.datasets[0].data  = data.chart_balances;
+            growthChart.data.datasets[0].borderColor     = jarColor;
+            growthChart.data.datasets[0].backgroundColor = jarColor + "1a";
+            growthChart.data.datasets[0].pointBackgroundColor = jarColor;
+            growthChart.options.scales.y.title.text = `${jarName} Balance ($)`;
+            growthChart.update();
+        });
+}
+
+function selectAll() {
+    selectedJarId = null;
+    document.querySelectorAll(".jar-list-row").forEach(r => r.classList.remove("active"));
+    document.getElementById("jar-all-row").classList.add("active");
+
+    // Reset donut center
+    document.getElementById("donut-center-value").textContent =
+        "$" + totalSavings.toLocaleString("en-US", {minimumFractionDigits:0, maximumFractionDigits:0});
+    document.getElementById("donut-center-label").textContent = "all jars";
+
+    // Reset donut colors
+    donutChart.data.datasets[0].backgroundColor = jarData.map(j => j.color);
+    donutChart.update();
+
+    // Reset growth chart
+    growthChart.data.labels = allGrowthLabels;
+    growthChart.data.datasets[0].label = "All Jars";
+    growthChart.data.datasets[0].data  = allGrowthBalances;
+    growthChart.data.datasets[0].borderColor     = "#6f42c1";
+    growthChart.data.datasets[0].backgroundColor = "rgba(111,66,193,0.1)";
+    growthChart.data.datasets[0].pointBackgroundColor = "#6f42c1";
+    growthChart.options.scales.y.title.text = "Balance ($)";
+    document.getElementById("growth-chart-label").textContent = "All Jars";
+    growthChart.update();
+}
+
+// Start with "All Jars" active
+document.getElementById("jar-all-row").classList.add("active");
+{% endif %}
+
 {% if trend_labels %}
 const trendLabels      = {{ trend_labels       | tojson }};
 const trendIncBudgeted = {{ trend_inc_budgeted | tojson }};
