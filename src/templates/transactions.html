@@ -525,7 +525,7 @@
                     <thead>
                         <tr>
                             <th>Category</th>
-                            <th class="text-end" style="width:130px;">Amount</th>
+                            <th class="text-end" style="width:130px;">Amount <span class="text-muted fw-normal" style="font-size:0.75rem;">(positive)</span></th>
                             <th style="width:36px;"></th>
                         </tr>
                     </thead>
@@ -754,6 +754,7 @@
 
     let splitTxnId     = null;
     let splitTxnAmount = 0;
+    let splitTxnSign   = 1;   // +1 for credit/income, -1 for debit
     let splitRowCount  = 0;
 
     const SPLIT_CATEGORIES = [
@@ -765,6 +766,7 @@
     function openSplitModal(txnId, amount, description) {
         splitTxnId     = txnId;
         splitTxnAmount = Math.abs(amount);
+        splitTxnSign   = amount < 0 ? -1 : 1;
         splitRowCount  = 0;
 
         document.getElementById("split-modal-desc").textContent  = description;
@@ -804,7 +806,7 @@
                 <input type="number" step="0.01" min="0.01"
                        class="form-control form-control-sm text-end split-amt"
                        data-row="${id}" value="${amount}"
-                       oninput="updateSplitValidation()"
+                       oninput="if(this.value.startsWith('-')) this.value = this.value.slice(1); updateSplitValidation()"
                        placeholder="0.00">
             </td>
             <td class="text-center">
@@ -843,7 +845,7 @@
     async function submitSplit() {
         const rows = [...document.querySelectorAll("#split-rows-body tr")];
         const splits = rows.map(row => ({
-            amount:      parseFloat(row.querySelector(".split-amt").value) || 0,
+            amount:      splitTxnSign * (parseFloat(row.querySelector(".split-amt").value) || 0),
             category_id: parseInt(row.querySelector(".split-cat").value) || null,
         }));
 

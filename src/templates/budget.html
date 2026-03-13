@@ -169,14 +169,15 @@
                         <td colspan="5"><i class="bi bi-calendar3 me-2"></i>Monthly Expenses</td>
                     </tr>
                     {% for row in monthly_rows %}
-                    {% set remaining = row.budgeted - row.spent %}
-                    {% set pct = (row.spent / row.budgeted * 100) if row.budgeted > 0 else none %}
+                    {% set spent_abs = row.spent|abs %}
+                    {% set remaining = row.budgeted - spent_abs %}
+                    {% set pct = (spent_abs / row.budgeted * 100) if row.budgeted > 0 else none %}
                     <tr>
                         <td class="fw-semibold {% if row.category == 'Unassigned' %}text-muted fst-italic{% endif %}">
                             {{ row.category }}
                         </td>
                         <td class="text-end text-muted">${{ "%.2f"|format(row.budgeted) }}</td>
-                        <td class="text-end amount-debit">${{ "%.2f"|format(row.spent) }}</td>
+                        <td class="text-end {% if row.spent > 0 %}amount-credit{% else %}amount-debit{% endif %}">${{ "%.2f"|format(spent_abs) }}</td>
                         <td class="text-end {% if pct is not none and pct > 110 %}budget-over{% elif pct is not none and pct > 100 %}budget-warn{% else %}budget-under{% endif %}">
                             {% if remaining < 0 %}-${{ "%.2f"|format(remaining|abs) }}
                             {% else %}${{ "%.2f"|format(remaining) }}{% endif %}
@@ -217,24 +218,33 @@
                     <tr class="savings-row">
                         <td class="fw-semibold {% if row.spent == 0 %}text-muted{% endif %}">{{ row.category }}</td>
                         <td class="text-end text-muted">$0.00</td>
-                        <td class="text-end {% if row.spent > 0 %}amount-debit{% else %}text-muted{% endif %}">
-                            ${{ "%.2f"|format(row.spent) }}
+                        <td class="text-end {% if row.spent < 0 %}amount-debit{% elif row.spent > 0 %}amount-credit{% else %}text-muted{% endif %}">
+                            ${{ "%.2f"|format(row.spent|abs) }}
                         </td>
                         <td class="text-end">
-                            {% if row.spent > 0 %}
+                            {% if row.spent < 0 %}
                             <span class="badge-reimburse">
-                                <i class="bi bi-arrow-left-right me-1"></i>Reimburse ${{ "%.2f"|format(row.spent) }}
+                                <i class="bi bi-arrow-left-right me-1"></i>Reimburse ${{ "%.2f"|format(row.spent|abs) }}
+                            </span>
+                            {% elif row.spent > 0 %}
+                            <span class="text-success fw-semibold">
+                                <i class="bi bi-plus-circle me-1"></i>${{ "%.2f"|format(row.spent) }} received
                             </span>
                             {% else %}
                             <span class="text-muted">—</span>
                             {% endif %}
                         </td>
                         <td>
-                            {% if row.spent > 0 %}
+                            {% if row.spent < 0 %}
                             <div class="progress" style="height:7px;">
                                 <div class="progress-bar bg-danger" style="width:100%"></div>
                             </div>
                             <small class="text-muted fst-italic">no budget set</small>
+                            {% elif row.spent > 0 %}
+                            <div class="progress" style="height:7px;">
+                                <div class="progress-bar bg-success" style="width:100%"></div>
+                            </div>
+                            <small class="text-muted fst-italic">credit received</small>
                             {% else %}
                             <small class="text-muted fst-italic">no activity</small>
                             {% endif %}
@@ -245,13 +255,17 @@
                     <tr class="savings-row subtotal-row">
                         <td>Savings Total</td>
                         <td class="text-end text-muted">$0.00</td>
-                        <td class="text-end {% if savings_total_spent > 0 %}amount-debit{% else %}text-muted{% endif %}">
-                            ${{ "%.2f"|format(savings_total_spent) }}
+                        <td class="text-end {% if savings_total_spent < 0 %}amount-debit{% elif savings_total_spent > 0 %}amount-credit{% else %}text-muted{% endif %}">
+                            ${{ "%.2f"|format(savings_total_spent|abs) }}
                         </td>
                         <td class="text-end">
-                            {% if savings_total_spent > 0 %}
+                            {% if savings_total_spent < 0 %}
                             <span class="badge-reimburse">
-                                <i class="bi bi-arrow-left-right me-1"></i>Reimburse ${{ "%.2f"|format(savings_total_spent) }}
+                                <i class="bi bi-arrow-left-right me-1"></i>Reimburse ${{ "%.2f"|format(savings_total_spent|abs) }}
+                            </span>
+                            {% elif savings_total_spent > 0 %}
+                            <span class="text-success fw-semibold">
+                                <i class="bi bi-plus-circle me-1"></i>${{ "%.2f"|format(savings_total_spent) }} received
                             </span>
                             {% else %}
                             <span class="text-muted">—</span>

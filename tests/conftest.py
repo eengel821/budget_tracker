@@ -17,7 +17,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from base import Base
-from models import Account, Transaction
+from models import Account, Category, Transaction
 
 
 @pytest.fixture(scope="function")
@@ -87,6 +87,33 @@ def formats():
     formats_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "formats.json"))
     with open(formats_path, "r") as f:
         return json.load(f)
+
+
+@pytest.fixture(scope="function")
+def seed(db):
+    """
+    Create a standard set of categories and an account for budget/aggregation tests.
+
+    Provides one account and four categories covering all cases tested by
+    test_budget.py: a monthly expense (Groceries), a budgeted expense (Dining),
+    a savings/zero-budget category (Emergency Fund), and an income category (Salary).
+    """
+    acct      = Account(name="Checking",      type="checking")
+    groceries = Category(name="Groceries",     monthly_budget=500.0, is_income=False)
+    dining    = Category(name="Dining",        monthly_budget=200.0, is_income=False)
+    savings   = Category(name="Emergency Fund",monthly_budget=0.0,   is_income=False, is_savings=True)
+    income    = Category(name="Salary",        monthly_budget=0.0,   is_income=True)
+
+    db.add_all([acct, groceries, dining, savings, income])
+    db.commit()
+
+    return {
+        "acct":      acct,
+        "groceries": groceries,
+        "dining":    dining,
+        "savings":   savings,
+        "income":    income,
+    }
 
 
 @pytest.fixture(scope="function")

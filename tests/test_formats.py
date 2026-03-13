@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 # Point FORMATS_FILE to the absolute path of formats.json in the project root
 import_transactions.FORMATS_FILE = Path(__file__).resolve().parent.parent / "formats.json"
 
-EXPECTED_BANKS = {"chase", "capitalone", "becu", "discover"}
+EXPECTED_BANKS = {"chase", "capitalone", "becu", "discover", "etrade"}
 REQUIRED_KEYS = {"date_col", "description_col", "category_col", "amount_col", "debit_col", "credit_col", "date_format"}
 
 
@@ -72,6 +72,13 @@ class TestLoadFormats:
         assert result["becu"]["amount_col"] is None
         assert result["becu"]["debit_col"] is not None
         assert result["becu"]["credit_col"] is not None
+
+    def test_etrade_uses_single_amount_column(self):
+        """E*Trade format should use a single amount column, not split debit/credit."""
+        result = load_formats()
+        assert result["etrade"]["amount_col"] is not None
+        assert result["etrade"]["debit_col"] is None
+        assert result["etrade"]["credit_col"] is None
 
     def test_date_formats_are_valid_strings(self):
         """Every bank format should define a non-empty date format string."""
