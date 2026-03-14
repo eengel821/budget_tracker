@@ -30,6 +30,20 @@ from database import init_db, get_db
 from models import Transaction, Category, Account
 from categorizer import categorize_all_uncategorized
 from import_transactions import import_csv, load_formats, load_exclude_keywords
+from services.aggregations import (
+    JAR_COLORS,
+    get_available_months,
+    get_current_month_str,
+    get_jar_balances,
+    get_month_label,
+    get_monthly_income,
+    get_monthly_spending,
+    get_total_expenses,
+    get_total_income,
+    get_uncategorized_count,
+    parse_month,
+)
+from services.budget import build_budget_page_data, calculate_transaction_page_totals
 
 
 # ── App setup ────────────────────────────────────────────────────────────────
@@ -71,172 +85,7 @@ class SplitRequest(BaseModel):
     splits: list[SplitItem]
 
 
-# ── Helper functions ─────────────────────────────────────────────────────────
-
-JAR_COLORS = [
-    "#4e73df", "#1cc88a", "#36b9cc", "#f6c23e",
-    "#e74a3b", "#6f42c1", "#fd7e14", "#20c997",
-    "#6610f2", "#d63384",
-]
-
-def get_available_months(db: Session) -> list[dict]:
-    """
-    Return a list of months that have transactions, formatted for dropdowns.
-    Each entry has a 'value' (YYYY-MM) and a 'label' (e.g. 'February 2026').
-    """
-    rows = db.query(
-        extract("year", Transaction.date).label("year"),
-        extract("month", Transaction.date).label("month"),
-    ).distinct().order_by("year", "month").all()
-
-    months = []
-    for row in rows:
-        year, month = int(row.year), int(row.month)
-        label = datetime(year, month, 1).strftime("%B %Y")
-        months.append({"value": f"{year}-{month:02d}", "label": label})
-    return months
-
-
-def get_current_month_str() -> str:
-    """Return the current month as a YYYY-MM string."""
-    today = date.today()
-    return f"{today.year}-{today.month:02d}"
-
-def get_jar_balances(db: Session) -> list[dict]:
-    """
-    Calculate the current balance of every savings jar (is_savings=True category)
-    by summing all SavingsAllocation rows for that category.
-    Returns a list of dicts with: category_id, name, balance, pct, color.
-    """
-    from models import SavingsAllocation
-    savings_cats = db.query(Category).filter(Category.is_savings == True).order_by(Category.name).all()
-
-    results = []
-    total_positive = sum(
-        db.query(func.sum(SavingsAllocation.amount))
-          .filter(SavingsAllocation.category_id == cat.id)
-          .scalar() or 0
-        for cat in savings_cats
-    )
-    total_abs = abs(total_positive) if total_positive else 1
-
-    for i, cat in enumerate(savings_cats):
-        balance = db.query(func.sum(SavingsAllocation.amount))\
-                    .filter(SavingsAllocation.category_id == cat.id)\
-                    .scalar() or 0
-        balance = round(balance, 2)
-        pct = round((balance / total_abs) * 100, 1) if total_abs else 0
-        results.append({
-            "category_id": cat.id,
-            "name":        cat.name,
-            "balance":     balance,
-            "pct":         max(pct, 0),
-            "color":       JAR_COLORS[i % len(JAR_COLORS)],
-        })
-    return results
-
-def parse_month(month_str: str) -> tuple[int, int]:
-    """Parse a YYYY-MM string into (year, month) integers."""
-    year, month = month_str.split("-")
-    return int(year), int(month)
-
-
-def get_month_label(month_str: str) -> str:
-    """Convert a YYYY-MM string to a human-readable label like 'February 2026'."""
-    year, month = parse_month(month_str)
-    return datetime(year, month, 1).strftime("%B %Y")
-
-
-def get_uncategorized_count(db: Session) -> int:
-    """Return the total number of uncategorized non-excluded transactions."""
-    return db.query(Transaction).filter(
-        Transaction.category_id.is_(None),
-        Transaction.excluded == False,
-    ).count()
-
-
-def get_monthly_spending(db: Session, year: int, month: int):
-    """
-    Return aggregated spending per category for a given month.
-    Sums ALL transaction amounts for non-income categories (debits and credits).
-    Refunds/credits in expense categories reduce the net total correctly.
-    Excludes income categories and excluded transactions.
-    For split transactions: uses child rows (per-category) not the parent (is_split=True).
-    """
-    return db.query(
-        Category.name.label("category_name"),
-        Category.monthly_budget.label("monthly_budget"),
-        func.sum(Transaction.amount).label("total"),
-    ).join(Transaction, Transaction.category_id == Category.id)     .filter(
-        extract("year",  Transaction.date) == year,
-        extract("month", Transaction.date) == month,
-        Transaction.is_split == False,
-        (Transaction.excluded == False) | (Transaction.parent_id != None),
-        Category.is_income == False,
-    ).group_by(Category.id).order_by(func.sum(Transaction.amount)).all()
-
-
-def get_monthly_income(db: Session, year: int, month: int):
-    """
-    Return aggregated income per category for a given month.
-    Only counts positive transactions in is_income categories.
-    Excludes split parents to avoid double-counting.
-    """
-    return db.query(
-        Category.name.label("category_name"),
-        Category.monthly_budget.label("monthly_budget"),
-        func.sum(Transaction.amount).label("total"),
-    ).join(Transaction, Transaction.category_id == Category.id)     .filter(
-        extract("year",  Transaction.date) == year,
-        extract("month", Transaction.date) == month,
-        Transaction.amount > 0,
-        Transaction.is_split == False,
-        (Transaction.excluded == False) | (Transaction.parent_id != None),
-        Category.is_income == True,
-    ).group_by(Category.id).order_by(func.sum(Transaction.amount).desc()).all()
-
-
-def get_total_expenses(db: Session, year: int, month: int) -> float:
-    """
-    Total expenses for a month: sum of ALL transactions in non-income
-    categories plus uncategorized transactions (excluded never counted).
-    For split transactions: counts children (per-category), not the parent.
-    Returns a negative number representing net outflow.
-    """
-    categorized = db.query(func.sum(Transaction.amount))        .join(Category, Transaction.category_id == Category.id)        .filter(
-            extract("year",  Transaction.date) == year,
-            extract("month", Transaction.date) == month,
-            Transaction.is_split == False,
-            (Transaction.excluded == False) | (Transaction.parent_id != None),
-            Category.is_income == False,
-        ).scalar() or 0
-
-    uncategorized = db.query(func.sum(Transaction.amount))        .filter(
-            extract("year",  Transaction.date) == year,
-            extract("month", Transaction.date) == month,
-            Transaction.excluded == False,
-            Transaction.is_split == False,
-            Transaction.category_id.is_(None),
-        ).scalar() or 0
-
-    return categorized + uncategorized
-
-
-def get_total_income(db: Session, year: int, month: int) -> float:
-    """
-    Total income for a month: sum of positive transactions in
-    is_income categories only. Excluded transactions never counted.
-    Split parents excluded to avoid double-counting.
-    """
-    return db.query(func.sum(Transaction.amount))        .join(Category, Transaction.category_id == Category.id)        .filter(
-            extract("year",  Transaction.date) == year,
-            extract("month", Transaction.date) == month,
-            Transaction.amount > 0,
-            Transaction.is_split == False,
-            (Transaction.excluded == False) | (Transaction.parent_id != None),
-            Category.is_income == True,
-        ).scalar() or 0
-
+# Helper functions are in services/aggregations.py and services/budget.py
 
 # ── Frontend routes ──────────────────────────────────────────────────────────
 
@@ -316,8 +165,7 @@ def dashboard(request: Request, db: Session = Depends(get_db), month: Optional[s
         savings_growth_labels.append(datetime(g_yr, g_mo, 1).strftime("%b %y"))
         savings_growth_balances.append(bal)
 
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "dashboard.html", {
         "active_page": "dashboard",
         "available_months": available_months,
         "selected_month": selected_month,
@@ -405,34 +253,16 @@ def transactions_page(
 
     transactions = query.order_by(Transaction.date.desc()).all()
 
-    # Totals: when filtering by category, use split children (which carry the per-category
-    # amount) and exclude their parents to avoid double-counting.
-    # Without a category filter, use only top-level transactions as before.
     income_cat_ids = {
         c.id for c in db.query(Category).filter(Category.is_income == True).all()
     }
-    if category_id and category_id != "none":
-        cat_id_int = int(category_id)
-        total_txns = [
-            t for t in transactions
-            if (t.parent_id is not None and t.category_id == cat_id_int)
-            or (t.parent_id is None and not t.is_split and t.category_id == cat_id_int)
-        ]
-    else:
-        total_txns = [t for t in transactions if t.parent_id is None]
+    cat_id_int = int(category_id) if (category_id and category_id != "none") else None
+    totals = calculate_transaction_page_totals(transactions, income_cat_ids, cat_id_int)
+    total_spent  = totals["total_spent"]
+    total_income = totals["total_income"]
+    net_total    = totals["net_total"]
 
-    total_spent = sum(
-        t.amount for t in total_txns
-        if t.category_id is None or t.category_id not in income_cat_ids
-    )
-    total_income = sum(
-        t.amount for t in total_txns
-        if t.amount > 0 and t.category_id in income_cat_ids
-    )
-    net_total = total_income + total_spent  # total_spent is negative
-
-    return templates.TemplateResponse("transactions.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "transactions.html", {
         "active_page": "transactions",
         "transactions": transactions,
         "accounts": accounts,
@@ -533,8 +363,7 @@ def review_page(request: Request, db: Session = Depends(get_db), message: Option
 
     categories = db.query(Category).order_by(Category.name).all()
 
-    return templates.TemplateResponse("review.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "review.html", {
         "active_page": "review",
         "transactions": transactions,
         "categories": categories,
@@ -550,128 +379,15 @@ def budget_page(request: Request, db: Session = Depends(get_db), month: Optional
     selected_month = (month or available_months[-1]["value"]) if available_months else get_current_month_str()
     year, mo = parse_month(selected_month)
 
-    spending = get_monthly_spending(db, year, mo)
-    income   = get_monthly_income(db, year, mo)
+    data = build_budget_page_data(db, year, mo)
 
-    spent_by_cat  = {row.category_name: row.total for row in spending}
-    income_by_cat = {row.category_name: row.total for row in income}
-
-    all_categories = db.query(Category).order_by(Category.name).all()
-
-    expense_rows = []
-    income_rows  = []
-
-    for cat in all_categories:
-        budgeted = cat.monthly_budget or 0
-        if cat.is_income:
-            actual = income_by_cat.get(cat.name, 0)
-        else:
-            # Preserve sign: negative = net expense, positive = net credit/refund into category
-            actual = spent_by_cat.get(cat.name, 0)
-        if budgeted == 0 and actual == 0:
-            continue
-        # Use abs(actual) for remaining/pct so that negative expense amounts
-        # (e.g. -$200 spent) don't inflate remaining via double-negation
-        spent_abs = abs(actual)
-        pct_used  = (spent_abs / budgeted * 100) if budgeted > 0 else None
-        remaining = budgeted - spent_abs
-        row = {
-            "id":        cat.id,
-            "category":  cat.name,
-            "budgeted":  budgeted,
-            "spent":     actual,    # signed: template shows green if positive
-            "remaining": remaining,
-            "pct_used":  pct_used,
-        }
-        if cat.is_income:
-            income_rows.append(row)
-        else:
-            expense_rows.append(row)
-
-    # Unassigned bucket — uncategorized non-excluded expense transactions
-    # Excludes split parents (their amount is covered by children)
-    unassigned_txns = db.query(Transaction).filter(
-        extract("year",  Transaction.date) == year,
-        extract("month", Transaction.date) == mo,
-        Transaction.category_id.is_(None),
-        Transaction.excluded == False,
-        Transaction.is_split == False,
-    ).all()
-    unassigned_total = abs(sum(t.amount for t in unassigned_txns if t.amount < 0))
-    if unassigned_total > 0:
-        expense_rows.append({
-            "id":        None,
-            "category":  "Unassigned",
-            "budgeted":  0,
-            "spent":     unassigned_total,
-            "remaining": -unassigned_total,
-            "pct_used":  None,
-        })
-
-    # Split expense_rows into monthly (budget > 0) and savings (budget == 0)
-    monthly_rows = [r for r in expense_rows if r["category"] != "Unassigned" and r["budgeted"] > 0]
-    savings_rows_base = [r for r in expense_rows if r["category"] != "Unassigned" and r["budgeted"] == 0]
-
-    # For savings: always show ALL non-income zero-budget categories
-    all_savings_cats = db.query(Category)        .filter(Category.is_income == False, Category.monthly_budget == 0)        .order_by(Category.name).all()
-    savings_spent_map = {r["category"]: r["spent"] for r in savings_rows_base}
-    savings_rows = []
-    for cat in all_savings_cats:
-        spent = savings_spent_map.get(cat.name, 0)
-        savings_rows.append({
-            "id":       cat.id,
-            "category": cat.name,
-            "budgeted": 0,
-            "spent":    spent,
-        })
-
-    # Unassigned goes into monthly group
-    unassigned = next((r for r in expense_rows if r["category"] == "Unassigned"), None)
-    if unassigned:
-        monthly_rows.append(unassigned)
-
-    total_budgeted      = db.query(func.sum(Category.monthly_budget)).filter(Category.is_income == False).scalar() or 0
-    total_income        = get_total_income(db, year, mo)
-
-    # Row sums are signed (negative=expense, positive=credit). Take abs for display totals.
-    monthly_total_spent = sum(abs(r["spent"]) for r in monthly_rows)
-    savings_total_spent = sum(r["spent"] for r in savings_rows)          # keep signed for savings (can be credit)
-    total_spent         = monthly_total_spent + abs(savings_total_spent) # abs total for budget comparison
-    total_remaining     = total_budgeted - total_spent
-    net_total           = total_income - total_spent
-
-    # Chart data — use abs for expense bars, filter by negative for actual expenses
-    monthly_labels  = [r["category"] for r in monthly_rows]
-    monthly_budgets = [r["budgeted"]  for r in monthly_rows]
-    monthly_spent   = [abs(r["spent"]) for r in monthly_rows]
-    savings_labels  = [r["category"]  for r in savings_rows if r["spent"] < 0]
-    savings_spent   = [abs(r["spent"]) for r in savings_rows if r["spent"] < 0]
-
-    return templates.TemplateResponse("budget.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "budget.html", {
         "active_page": "budget",
         "available_months": available_months,
         "selected_month": selected_month,
         "current_month_label": get_month_label(selected_month),
-        "monthly_rows":         monthly_rows,
-        "savings_rows":         savings_rows,
-        "income_rows":          income_rows,
-        "monthly_labels":       monthly_labels,
-        "monthly_budgets":      monthly_budgets,
-        "monthly_spent":        monthly_spent,
-        "savings_labels":       savings_labels,
-        "savings_spent":        savings_spent,
-        "income_labels":        [r["category"] for r in income_rows],
-        "income_budgets":       [r["budgeted"]  for r in income_rows],
-        "income_spent":         [r["spent"]     for r in income_rows],
-        "total_budgeted":       total_budgeted,
-        "total_spent":          total_spent,
-        "total_remaining":      total_remaining,
-        "total_income":         total_income,
-        "net_total":            net_total,
-        "monthly_total_spent":  monthly_total_spent,
-        "savings_total_spent":  savings_total_spent,
         "uncategorized_count":  get_uncategorized_count(db),
+        **data,
     })
 
 
@@ -685,8 +401,7 @@ def budget_manage_page(
     categories = db.query(Category).order_by(Category.name).all()
     total_budgeted_expenses = sum(c.monthly_budget or 0 for c in categories if not c.is_income)
     total_budgeted_income   = sum(c.monthly_budget or 0 for c in categories if c.is_income)
-    return templates.TemplateResponse("budget_manage.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "budget_manage.html", {
         "active_page": "budget",
         "categories": categories,
         "total_budgeted_expenses": total_budgeted_expenses,
@@ -766,8 +481,7 @@ def categories_page(request: Request, db: Session = Depends(get_db)):
     top_savings_name = top_savings["name"] if top_savings else "None"
     top_savings_amt  = top_savings["avg_spent"] if top_savings else 0
 
-    return templates.TemplateResponse("categories.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "categories.html", {
         "active_page": "categories",
         "total_cat_count":    total_cat_count,
         "total_budgeted_mo":  total_budgeted_mo,
@@ -836,8 +550,7 @@ def savings_page(
         AccountModel.name.ilike("%etrade%") | AccountModel.name.ilike("%savings%")
     ).first()
 
-    return templates.TemplateResponse("savings.html", {
-        "request":              request,
+    return templates.TemplateResponse(request, "savings.html", {
         "active_page":          "savings",
         "uncategorized_count":  get_uncategorized_count(db),
         "savings_transactions": savings_transactions,

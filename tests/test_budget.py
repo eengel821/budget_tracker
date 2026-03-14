@@ -6,6 +6,11 @@ get_total_income, the unassigned bucket, and the category filter/totals
 on the transactions page — for normal, split, credit, savings, and income
 transaction types.
 
+Aggregation functions are imported directly from services.aggregations so
+that tests exercise the real production code rather than a re-implementation.
+If the service logic changes and tests fail, the service has drifted from
+the expected contract.
+
 Requires: conftest.py seed fixture, real models with is_split + parent_id columns.
 
 Run from project root:
@@ -18,72 +23,12 @@ import pytest
 from sqlalchemy import extract, func
 
 from models import Category, Transaction
-
-
-# ── Re-implement the aggregation functions under test ─────────────────────────
-# These mirror the functions in main.py exactly. If the real functions change
-# and tests start failing, it means the logic has drifted.
-
-def get_monthly_spending(db, year, month):
-    return db.query(
-        Category.name.label("category_name"),
-        Category.monthly_budget.label("monthly_budget"),
-        func.sum(Transaction.amount).label("total"),
-    ).join(Transaction, Transaction.category_id == Category.id).filter(
-        extract("year",  Transaction.date) == year,
-        extract("month", Transaction.date) == month,
-        Transaction.is_split == False,
-        (Transaction.excluded == False) | (Transaction.parent_id != None),
-        Category.is_income == False,
-    ).group_by(Category.id).order_by(func.sum(Transaction.amount)).all()
-
-
-def get_monthly_income(db, year, month):
-    return db.query(
-        Category.name.label("category_name"),
-        Category.monthly_budget.label("monthly_budget"),
-        func.sum(Transaction.amount).label("total"),
-    ).join(Transaction, Transaction.category_id == Category.id).filter(
-        extract("year",  Transaction.date) == year,
-        extract("month", Transaction.date) == month,
-        Transaction.amount > 0,
-        Transaction.is_split == False,
-        (Transaction.excluded == False) | (Transaction.parent_id != None),
-        Category.is_income == True,
-    ).group_by(Category.id).order_by(func.sum(Transaction.amount).desc()).all()
-
-
-def get_total_expenses(db, year, month):
-    categorized = db.query(func.sum(Transaction.amount))\
-        .join(Category, Transaction.category_id == Category.id).filter(
-            extract("year",  Transaction.date) == year,
-            extract("month", Transaction.date) == month,
-            Transaction.is_split == False,
-            (Transaction.excluded == False) | (Transaction.parent_id != None),
-            Category.is_income == False,
-        ).scalar() or 0
-
-    uncategorized = db.query(func.sum(Transaction.amount)).filter(
-        extract("year",  Transaction.date) == year,
-        extract("month", Transaction.date) == month,
-        Transaction.excluded == False,
-        Transaction.is_split == False,
-        Transaction.category_id.is_(None),
-    ).scalar() or 0
-
-    return categorized + uncategorized
-
-
-def get_total_income(db, year, month):
-    return db.query(func.sum(Transaction.amount))\
-        .join(Category, Transaction.category_id == Category.id).filter(
-            extract("year",  Transaction.date) == year,
-            extract("month", Transaction.date) == month,
-            Transaction.amount > 0,
-            Transaction.is_split == False,
-            (Transaction.excluded == False) | (Transaction.parent_id != None),
-            Category.is_income == True,
-        ).scalar() or 0
+from services.aggregations import (
+    get_monthly_spending,
+    get_monthly_income,
+    get_total_expenses,
+    get_total_income,
+)
 
 
 def get_unassigned_total(db, year, month):
@@ -472,9 +417,8 @@ class TestMonthlySpendingDetail:
 
 
 # ── Budget page actual calculation helper ─────────────────────────────────────
-# Mirrors the for-cat loop in budget_page in main.py.
-# actual = net (signed) for expense/savings; income_by_cat total for income cats.
-# This is the FIXED version — positive net in savings shows as positive, not abs().
+# Uses the real aggregation functions from services.aggregations.
+# actual is signed: negative = net expense, positive = net credit/income.
 
 def get_budget_actuals(db, year, month):
     """
