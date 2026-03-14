@@ -1,52 +1,177 @@
 """
 conftest.py - Shared fixtures for all test modules.
 
-pytest automatically loads this file before running any tests. Fixtures defined
-here are available to every test in the tests/ folder without needing to import them.
+Two levels of database fixture are provided:
+
+  db     — raw SQLAlchemy session for unit tests that call helpers directly
+  client — FastAPI TestClient wired to the same in-memory DB for API tests
+
+The critical pattern for SQLite :memory: testing is that create_all,
+the test session, and the app route handlers must ALL share the same
+underlying connection object. SQLite creates a fresh empty database for
+every new connection to :memory:, so if the session or the route handler
+opens a new connection, they see an empty schema.
+
+We solve this by:
+  1. Creating one engine with a static pool (one connection, never closed)
+  2. Running create_all on that engine
+  3. Binding the test session to that engine
+  4. Patching database.engine so init_db() and get_db() use the same engine
 """
 
 import json
+import os
+import sys
+
 import pytest
 from datetime import date
-from sqlalchemy import create_engine
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
-# We need to import Base and models so create_all knows about all tables
-import sys
-import os
+# Ensure src/ is on the path so all src modules are importable from tests/
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from base import Base
+import database as database_module
+from database import get_db
+from main import app
 from models import Account, Category, Transaction
 
+
+# ── Database fixtures ────────────────────────────────────────────────────────
 
 @pytest.fixture(scope="function")
 def db():
     """
     Create a temporary in-memory SQLite database for each test.
 
-    Uses SQLite's :memory: mode so no files are written to disk and each
-    test starts with a completely clean, empty database. The session is
-    closed and the database is discarded automatically after each test.
+    Uses StaticPool so that every request to this engine reuses the same
+    underlying connection. This is required for SQLite :memory: databases —
+    without it, each new connection sees a fresh empty database, so tables
+    created in one connection are invisible to another.
     """
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     Base.metadata.create_all(bind=engine)
-    SessionLocal = sessionmaker(bind=engine)
+    SessionLocal = sessionmaker(bind=engine, autoflush=False)
     session = SessionLocal()
     yield session
     session.close()
     Base.metadata.drop_all(bind=engine)
+    engine.dispose()
 
 
 @pytest.fixture(scope="function")
-def sample_account(db):
+def client(db):
     """
-    Create and return a sample Account record for use in tests.
+    FastAPI TestClient wired to the test's in-memory database.
 
-    Inserts a single account named 'chase' into the test database so that
-    transactions can be created against it without needing to set one up
-    in every individual test.
+    Patches database.engine and database.SessionLocal so that:
+      - init_db() in the lifespan creates tables on the test engine
+      - get_db() yields a session bound to the same test engine
+
+    The test session (db) and the app route handlers share the same
+    StaticPool engine, so they all see the same in-memory database.
     """
+    test_engine = db.bind
+    TestSessionLocal = sessionmaker(bind=test_engine, autoflush=False)
+
+    original_engine = database_module.engine
+    original_session = database_module.SessionLocal
+    database_module.engine = test_engine
+    database_module.SessionLocal = TestSessionLocal
+
+    def override_get_db():
+        try:
+            yield db
+        finally:
+            pass  # lifecycle managed by db fixture
+
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as c:
+        yield c
+
+    database_module.engine = original_engine
+    database_module.SessionLocal = original_session
+    app.dependency_overrides.clear()
+
+
+# ── Seed fixtures ────────────────────────────────────────────────────────────
+
+@pytest.fixture(scope="function")
+def seed(db):
+    """
+    Seed the minimal categories and account needed by budget aggregation tests.
+    Returns a dict of named records.
+    """
+    acct = Account(name="chase", type="imported")
+    db.add(acct)
+
+    groceries = Category(name="Groceries", monthly_budget=500.0)
+    dining    = Category(name="Dining",    monthly_budget=200.0)
+    savings   = Category(name="Emergency Fund", monthly_budget=0.0, is_savings=True)
+    income    = Category(name="Salary",    monthly_budget=0.0, is_income=True)
+    db.add_all([groceries, dining, savings, income])
+    db.commit()
+
+    return {
+        "acct":      acct,
+        "groceries": groceries,
+        "dining":    dining,
+        "savings":   savings,
+        "income":    income,
+    }
+
+
+@pytest.fixture(scope="function")
+def api_seed(db):
+    """
+    Seed standard account, categories, and one transaction for API tests.
+    Returns a dict of named records.
+    """
+    acct = Account(name="testbank", type="imported")
+    db.add(acct)
+
+    groceries = Category(name="Groceries", monthly_budget=500.0)
+    dining    = Category(name="Dining",    monthly_budget=200.0)
+    income    = Category(name="Salary",    monthly_budget=0.0, is_income=True)
+    savings   = Category(name="Emergency Fund", monthly_budget=0.0, is_savings=True)
+    db.add_all([groceries, dining, income, savings])
+    db.commit()
+
+    txn = Transaction(
+        date=date(2025, 3, 15),
+        amount=-50.0,
+        description="SAFEWAY",
+        notes=None,
+        excluded=False,
+        account_id=acct.id,
+        category_id=None,
+    )
+    db.add(txn)
+    db.commit()
+    db.refresh(txn)
+
+    return {
+        "acct":      acct,
+        "groceries": groceries,
+        "dining":    dining,
+        "income":    income,
+        "savings":   savings,
+        "txn":       txn,
+    }
+
+
+# ── Legacy fixtures (kept for test_formats.py compatibility) ─────────────────
+
+@pytest.fixture(scope="function")
+def sample_account(db):
+    """Create and return a sample Account for duplicate detection tests."""
     account = Account(name="chase", type="imported")
     db.add(account)
     db.commit()
@@ -56,12 +181,7 @@ def sample_account(db):
 
 @pytest.fixture(scope="function")
 def sample_transaction(db, sample_account):
-    """
-    Create and return a sample Transaction record for use in duplicate detection tests.
-
-    Inserts a single known transaction so that tests can verify whether
-    is_duplicate() correctly identifies it as a duplicate.
-    """
+    """Create and return a sample Transaction for duplicate detection tests."""
     transaction = Transaction(
         date=date(2026, 2, 18),
         amount=-7.00,
@@ -77,59 +197,17 @@ def sample_transaction(db, sample_account):
 
 @pytest.fixture(scope="session")
 def formats():
-    """
-    Load and return the formats dictionary from formats.json.
-
-    Reads the real formats.json file from the project root so that parsing
-    tests use the same format definitions as the production importer.
-    Scoped to the session so the file is only read once across all tests.
-    """
-    formats_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "formats.json"))
-    with open(formats_path, "r") as f:
+    """Load and return the formats dictionary from formats.json."""
+    formats_path = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "formats.json")
+    )
+    with open(formats_path) as f:
         return json.load(f)
 
 
 @pytest.fixture(scope="function")
-def seed(db):
-    """
-    Create a standard set of categories and an account for budget/aggregation tests.
-
-    Provides one account and four categories covering all cases tested by
-    test_budget.py: a monthly expense (Groceries), a budgeted expense (Dining),
-    a savings/zero-budget category (Emergency Fund), and an income category (Salary).
-    """
-    acct      = Account(name="Checking",      type="checking")
-    groceries = Category(name="Groceries",     monthly_budget=500.0, is_income=False)
-    dining    = Category(name="Dining",        monthly_budget=200.0, is_income=False)
-    savings   = Category(name="Emergency Fund",monthly_budget=0.0,   is_income=False, is_savings=True)
-    income    = Category(name="Salary",        monthly_budget=0.0,   is_income=True)
-
-    db.add_all([acct, groceries, dining, savings, income])
-    db.commit()
-
-    return {
-        "acct":      acct,
-        "groceries": groceries,
-        "dining":    dining,
-        "savings":   savings,
-        "income":    income,
-    }
-
-
-@pytest.fixture(scope="function")
 def tmp_csv(tmp_path):
-    """
-    Return a helper function that writes a CSV string to a temporary file.
-
-    Uses pytest's built-in tmp_path fixture to create a temporary directory
-    that is automatically cleaned up after each test. The returned function
-    accepts a filename and CSV content string and returns the full Path to
-    the created file.
-
-    Usage:
-        def test_something(tmp_csv):
-            filepath = tmp_csv("chase.csv", "header1,header2\\nval1,val2")
-    """
+    """Return a helper that writes a CSV string to a temporary file."""
     def _write(filename, content):
         filepath = tmp_path / filename
         filepath.write_text(content, encoding="utf-8")

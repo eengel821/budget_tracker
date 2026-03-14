@@ -21,9 +21,17 @@ else:
 def load_exclude_keywords() -> list[str]:
     """
     Load the list of keywords that should trigger auto-exclusion.
-    Returns a list of keyword strings from exclude_keywords.json.
+
+    Loads from exclude_keywords.json if it exists, otherwise falls back
+    to exclude_keywords.example.json so CI and fresh checkouts work
+    without requiring the real (gitignored) config file.
+
+    Returns a list of uppercased keyword strings.
     """
-    exclude_path = Path(__file__).resolve().parent.parent / "exclude_keywords.json"
+    root = Path(__file__).resolve().parent.parent
+    exclude_path = root / "exclude_keywords.json"
+    if not exclude_path.exists():
+        exclude_path = root / "exclude_keywords.example.json"
     if not exclude_path.exists():
         return []
     with open(exclude_path, "r") as f:
