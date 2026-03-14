@@ -10,13 +10,8 @@ from models import Transaction, Account
 IMPORT_FOLDER = Path("../csv_imports")
 FORMATS_FILE = Path("../formats.json")
 
-# --- Diagnostics ---
+# DB_PATH used by CLI diagnostics — printed only when run directly
 DB_PATH = (Path(__file__).resolve().parent.parent / "data" / "budget.db")
-print(f"Database location: {DB_PATH}")
-if DB_PATH.exists():
-    print(f"Database file found ✓ (size: {DB_PATH.stat().st_size} bytes)")
-else:
-    print("Database file not found yet — will be created on first import")
 
 def load_exclude_keywords() -> list[str]:
     """
@@ -279,6 +274,13 @@ def list_available_files():
 
 
 if __name__ == "__main__":
+    # Show DB diagnostics when run directly (not on import)
+    print(f"Database location: {DB_PATH}")
+    if DB_PATH.exists():
+        print(f"Database file found (size: {DB_PATH.stat().st_size} bytes)")
+    else:
+        print("Database file not found yet -- will be created on first import")
+
     # Back up the database before importing
     backup_script = Path(__file__).resolve().parent.parent / "backup_db.py"
     if backup_script.exists():
