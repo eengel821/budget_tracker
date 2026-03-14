@@ -1,0 +1,74 @@
+# ── Budget Tracker — GitLab CI Pipeline ─────────────────────────────────────
+#
+# Stages:
+#   lint  — Ruff checks for style, correctness, and import ordering.
+#           Fails fast on any violation so code quality is enforced on every push.
+#
+#   test  — Runs the full pytest suite with coverage reporting.
+#           Coverage threshold starts at 40% and will be raised to 80%
+#           incrementally as Phase B test expansion is completed.
+#
+# Python version mirrors production (3.11).
+# Dependencies are installed from requirements.txt on each run.
+# The SQLite database is created in-memory by the test fixtures so no
+# persistent storage or services are required.
+
+image: python:3.11-slim
+
+variables:
+  # Prevent Python from writing .pyc files into the repo during CI
+  PYTHONDONTWRITEBYTECODE: "1"
+  # Ensure print statements and logs appear immediately in CI output
+  PYTHONUNBUFFERED: "1"
+  # Tell pip to not use a cache dir (keeps the runner clean)
+  PIP_NO_CACHE_DIR: "1"
+
+stages:
+  - lint
+  - test
+
+# ── Shared setup ─────────────────────────────────────────────────────────────
+
+.install_deps: &install_deps
+  before_script:
+    - pip install -r requirements.txt
+
+# ── Stage: lint ──────────────────────────────────────────────────────────────
+
+ruff:
+  stage: lint
+  <<: *install_deps
+  script:
+    - echo "Running Ruff linter..."
+    - ruff check src/ tests/
+    - echo "Ruff passed ✓"
+  rules:
+    # Run on all branches and merge requests
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+
+# ── Stage: test ──────────────────────────────────────────────────────────────
+
+pytest:
+  stage: test
+  <<: *install_deps
+  script:
+    - echo "Running pytest with coverage..."
+    - pytest tests/
+        --cov=src
+        --cov-report=term-missing
+        --cov-report=xml:coverage.xml
+        --cov-fail-under=40
+    - echo "Tests passed ✓"
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  artifacts:
+    # Publish coverage XML so GitLab can display it in the MR diff view
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    # Keep the coverage report available for download for 7 days
+    expire_in: 7 days
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'

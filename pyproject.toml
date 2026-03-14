@@ -1,0 +1,67 @@
+[project]
+name = "budget-tracker"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+
+# ── Ruff — linter & formatter ────────────────────────────────────────────────
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [
+    "alembic/",
+    "__pycache__",
+    ".venv",
+    "*.egg-info",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes (unused imports, undefined names)
+    "I",   # isort (import ordering)
+    "B",   # flake8-bugbear (logic bugs, mutable defaults)
+    "UP",  # pyupgrade (modernise syntax for Python 3.11+)
+]
+ignore = [
+    # FastAPI uses function calls (Depends, File, Form) as default argument values,
+    # which bugbear flags as B008. This is intentional and safe in FastAPI.
+    "B008",
+    # SQLAlchemy Boolean column comparisons (== True/False) are flagged by E712,
+    # but SQLAlchemy requires the == operator for query filter expressions.
+    # These are suppressed per-line with `# noqa: E712` where needed.
+    "E712",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+
+# ── Pytest ───────────────────────────────────────────────────────────────────
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Show short test summary for all failures and errors
+addopts = "-ra"
+
+
+# ── Coverage ─────────────────────────────────────────────────────────────────
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    # CLI entry point — tested via subprocess, not pytest
+    "src/import_transactions.py",
+    # Alembic migration scripts
+    "alembic/*",
+]
+
+[tool.coverage.report]
+# Lines that are impossible to cover (e.g. defensive `if __name__ == "__main__"`)
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
