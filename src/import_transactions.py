@@ -10,15 +10,28 @@ from models import Transaction, Account
 IMPORT_FOLDER = Path("../csv_imports")
 FORMATS_FILE = Path("../formats.json")
 
-# DB_PATH used by CLI diagnostics — printed only when run directly
+# --- Diagnostics ---
 DB_PATH = (Path(__file__).resolve().parent.parent / "data" / "budget.db")
+print(f"Database location: {DB_PATH}")
+if DB_PATH.exists():
+    print(f"Database file found ✓ (size: {DB_PATH.stat().st_size} bytes)")
+else:
+    print("Database file not found yet — will be created on first import")
 
 def load_exclude_keywords() -> list[str]:
     """
     Load the list of keywords that should trigger auto-exclusion.
-    Returns a list of keyword strings from exclude_keywords.json.
+
+    Loads from exclude_keywords.json if it exists, otherwise falls back
+    to exclude_keywords.example.json so CI and fresh checkouts work
+    without requiring the real (gitignored) config file.
+
+    Returns a list of uppercased keyword strings.
     """
-    exclude_path = Path(__file__).resolve().parent.parent / "exclude_keywords.json"
+    root = Path(__file__).resolve().parent.parent
+    exclude_path = root / "exclude_keywords.json"
+    if not exclude_path.exists():
+        exclude_path = root / "exclude_keywords.example.json"
     if not exclude_path.exists():
         return []
     with open(exclude_path, "r") as f:
@@ -274,13 +287,6 @@ def list_available_files():
 
 
 if __name__ == "__main__":
-    # Show DB diagnostics when run directly (not on import)
-    print(f"Database location: {DB_PATH}")
-    if DB_PATH.exists():
-        print(f"Database file found (size: {DB_PATH.stat().st_size} bytes)")
-    else:
-        print("Database file not found yet -- will be created on first import")
-
     # Back up the database before importing
     backup_script = Path(__file__).resolve().parent.parent / "backup_db.py"
     if backup_script.exists():

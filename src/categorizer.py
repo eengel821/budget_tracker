@@ -20,7 +20,12 @@ from sqlalchemy.orm import Session
 from models import Transaction, Category
 from collections import Counter
 
-KEYWORDS_FILE = Path(__file__).resolve().parent.parent / "keywords.json"
+_ROOT = Path(__file__).resolve().parent.parent
+KEYWORDS_FILE = (
+    _ROOT / "keywords.json"
+    if (_ROOT / "keywords.json").exists()
+    else _ROOT / "keywords.example.json"
+)
 
 # Minimum ratio of history matches required to auto-assign a category.
 # e.g. 0.8 means 80% of previous transactions with this description
