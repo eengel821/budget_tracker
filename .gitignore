@@ -34,3 +34,11 @@ exclude_keywords.json
 categories.json
 keywords.json
 seed_budgets.py
+notes.txt
+
+# extra test files
+pytest_output.txt
+pytest_coverage.txt
+pytest_single.txt
+tests_list.txt
+.coverage
