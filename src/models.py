@@ -11,6 +11,12 @@ from base import Base
 
 
 class Account(Base):
+    """
+    A bank or financial institution account from which transactions are imported.
+
+    Each imported CSV file is associated with one Account so transactions can
+    be filtered and grouped by their source institution.
+    """
     __tablename__ = "accounts"
 
     id   = Column(Integer, primary_key=True, index=True)
@@ -22,6 +28,14 @@ class Account(Base):
 
 
 class Category(Base):
+    """
+    A budget category used to classify transactions.
+
+    Categories are marked as is_income=True for income sources (e.g. salary),
+    is_savings=True for savings jars (zero-budget categories tracked in the
+    savings section), or left as standard expense categories with a monthly
+    budget amount.
+    """
     __tablename__ = "categories"
 
     id             = Column(Integer, primary_key=True, index=True)
@@ -37,6 +51,14 @@ class Category(Base):
 
 
 class Transaction(Base):
+    """
+    A single financial transaction imported from a bank CSV or entered manually.
+
+    Transactions can be excluded from reports (excluded=True), split into
+    child transactions (is_split=True), or left as normal uncategorized
+    entries pending review. Split children reference their parent via
+    parent_id and are marked excluded=True to prevent double-counting.
+    """
     __tablename__ = "transactions"
 
     id          = Column(Integer, primary_key=True, index=True)

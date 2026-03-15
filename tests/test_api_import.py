@@ -250,7 +250,7 @@ class TestImportAutoExclusion:
     def test_excluded_keyword_auto_excludes_transaction(self, client, db):
         """Transactions matching an exclude keyword are imported as excluded=True."""
         csv_content = f"{CHASE_HEADER}\n{chase_row('01/15/2025', 'DISCOVER PAYMENT', -500.00)}"
-        with patch("main.load_exclude_keywords", return_value=["DISCOVER"]):
+        with patch("routers.imports.load_exclude_keywords", return_value=["DISCOVER"]):
             resp = client.post("/api/import", files=make_csv_file(csv_content), data={"bank": "chase"})
 
         assert resp.status_code == 200
@@ -263,7 +263,7 @@ class TestImportAutoExclusion:
     def test_normal_transaction_not_auto_excluded(self, client, db):
         """Transactions not matching any exclude keyword are imported as excluded=False."""
         csv_content = f"{CHASE_HEADER}\n{chase_row('01/15/2025', 'STARBUCKS', -5.50)}"
-        with patch("main.load_exclude_keywords", return_value=["DISCOVER"]):
+        with patch("routers.imports.load_exclude_keywords", return_value=["DISCOVER"]):
             resp = client.post("/api/import", files=make_csv_file(csv_content), data={"bank": "chase"})
 
         assert resp.json()["auto_excluded"] == 0
@@ -280,7 +280,7 @@ class TestImportAutoExclusion:
             chase_row("01/16/2025", "DISCOVER PAYMENT", -500.00),  # excluded
             chase_row("01/17/2025", "AMAZON", -42.99),             # normal
         ])
-        with patch("main.load_exclude_keywords", return_value=["DISCOVER"]):
+        with patch("routers.imports.load_exclude_keywords", return_value=["DISCOVER"]):
             resp = client.post("/api/import", files=make_csv_file(csv_content), data={"bank": "chase"})
 
         data = resp.json()
