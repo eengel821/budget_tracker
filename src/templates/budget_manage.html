@@ -429,7 +429,8 @@
             method: "PUT",
         });
         if (!response.ok) {
-            alert("Failed to update savings flag. Please try again.");
+            const data = await response.json().catch(() => ({}));
+            alert(data.detail || "Failed to update savings flag. Please try again.");
             checkbox.checked = !checkbox.checked; // revert
         }
     }

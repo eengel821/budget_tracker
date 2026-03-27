@@ -286,3 +286,64 @@ class TestToggleIsSavings:
         """Returns 404 when the category ID does not exist."""
         resp = client.put("/api/categories/99999/is_savings")
         assert resp.status_code == 404
+
+    def test_toggle_is_savings_off_blocked_when_nonzero_balance(self, client, db, api_seed):
+        """Turning off is_savings is blocked when the jar has a non-zero net balance."""
+        from models import SavingsAllocation, SavingsTransaction
+        from datetime import date
+
+        cat = api_seed["savings"]
+        assert cat.is_savings is True
+
+        # Create a deposit allocation leaving a positive balance
+        stxn = SavingsTransaction(
+            date=date(2025, 3, 1), amount=500.0,
+            description="Deposit", is_allocated=True,
+        )
+        db.add(stxn)
+        db.commit()
+        alloc = SavingsAllocation(
+            savings_transaction_id=stxn.id,
+            category_id=cat.id,
+            amount=500.0,
+        )
+        db.add(alloc)
+        db.commit()
+
+        resp = client.put(f"/api/categories/{cat.id}/is_savings")
+        assert resp.status_code == 409
+        assert "balance" in resp.json()["detail"].lower()
+        # Category should still be a savings jar
+        db.refresh(cat)
+        assert cat.is_savings is True
+
+    def test_toggle_is_savings_off_allowed_when_balance_is_zero(self, client, db, api_seed):
+        """Turning off is_savings is allowed when net balance is zero (history is fine)."""
+        from models import SavingsAllocation, SavingsTransaction
+        from datetime import date
+
+        cat = api_seed["savings"]
+
+        # Deposit then fully withdraw — net balance = 0
+        stxn1 = SavingsTransaction(date=date(2025, 3, 1), amount=500.0,
+                                   description="Deposit", is_allocated=True)
+        stxn2 = SavingsTransaction(date=date(2025, 3, 2), amount=-500.0,
+                                   description="Withdrawal", is_allocated=True)
+        db.add_all([stxn1, stxn2])
+        db.commit()
+        db.add(SavingsAllocation(savings_transaction_id=stxn1.id,
+                                 category_id=cat.id, amount=500.0))
+        db.add(SavingsAllocation(savings_transaction_id=stxn2.id,
+                                 category_id=cat.id, amount=-500.0))
+        db.commit()
+
+        resp = client.put(f"/api/categories/{cat.id}/is_savings")
+        assert resp.status_code == 200
+        assert resp.json()["is_savings"] is False
+
+    def test_toggle_is_savings_off_allowed_when_no_allocations(self, client, db, api_seed):
+        """Turning off is_savings is allowed when the jar has no allocations."""
+        cat = api_seed["savings"]
+        resp = client.put(f"/api/categories/{cat.id}/is_savings")
+        assert resp.status_code == 200
+        assert resp.json()["is_savings"] is False

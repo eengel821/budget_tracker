@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import Category
+from models import Category, SavingsAllocation
 from schemas import BudgetUpdate, CategoryCreate, CategoryRename
 
 router = APIRouter()
@@ -126,9 +126,35 @@ def toggle_category_is_savings(
     """
     Toggle the is_savings flag on a category.
 
+    Turning a savings jar OFF is blocked if the category has existing
+    SavingsAllocation rows. Removing a jar with allocations would orphan
+    those funds — the money would remain in the account balance but
+    disappear from all jar totals with no way to recover it. The user
+    must first reallocate or zero out all allocations for this jar before
+    it can be removed.
+
     Returns 404 if the category does not exist.
+    Returns 409 if turning off savings and allocations exist.
     """
     category = get_category_or_404(db, category_id)
+
+    # Block turning OFF savings if the jar has a non-zero net balance.
+    # Historical allocation rows are fine — what matters is that the money
+    # has been moved out (net balance = 0) before the jar is removed.
+    if category.is_savings:
+        from sqlalchemy import func as sqlfunc
+        net = db.query(sqlfunc.sum(SavingsAllocation.amount))                .filter(SavingsAllocation.category_id == category_id)                .scalar() or 0
+        net = round(net, 2)
+        if abs(net) > 0.01:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Cannot remove savings jar '{category.name}' — "
+                    f"it still has a balance of ${net:,.2f}. "
+                    f"Please move this balance to another jar first."
+                )
+            )
+
     category.is_savings = not category.is_savings
     db.commit()
     return {
