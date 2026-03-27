@@ -1,4 +1,0 @@
-** manage budgets button should be same style as import CSV buttons
-** on row hover the row highlights (i like) but the numbers lose their red and green color
-** adjust budget colors again (green = 0-105%, yellow 105-115%, red greater than 115%)
-** if i change a transactin category to one that uses a badge, the badge won't show up until after page refresh
