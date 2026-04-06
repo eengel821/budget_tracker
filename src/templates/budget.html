@@ -329,47 +329,6 @@
 {% endblock %}
 
 {% block scripts %}
-<style>
-    .income-cat-card { background: var(--bs-light); border-left: 4px solid #1cc88a; }
-    body.dark-mode .income-cat-card { background: #0d3d28 !important; border-left-color: #1cc88a; }
-    .divider-monthly td {
-        background: #eef2ff; color: #4338ca; font-weight: 700;
-        font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em;
-        padding: 0.5rem 0.75rem; border-top: 2px solid #c7d2fe; border-bottom: 1px solid #c7d2fe;
-    }
-    .divider-savings td {
-        background: #fdf2e9; color: #92400e; font-weight: 700;
-        font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em;
-        padding: 0.5rem 0.75rem; border-top: 2px solid #fcd9a0; border-bottom: 1px solid #fcd9a0;
-    }
-    .savings-row { background: #fffcf5; }
-    .savings-row:hover { background: #fff8ec !important; }
-    .table tbody tr.subtotal-row td { background-color: #f3f4f6 !important; font-weight: 600; font-size: 0.85rem; border-top: 1px solid #e5e7eb; }
-    .table tbody tr.subtotal-row.savings-row td { background-color: #f0ede4 !important; }
-    .table-hover tbody tr.subtotal-row:hover td { background-color: #e9e9e9 !important; }
-    .table-hover tbody tr.subtotal-row.savings-row:hover td { background-color: #e8e0d0 !important; }
-    .footer-expenses td {
-        background: #e9ecef; font-weight: 600; font-size: 0.88rem;
-        border-top: 2px solid #ced4da;
-    }
-    .footer-net td {
-        background: #312e81; color: #fff; font-weight: 700;
-        font-size: 0.88rem; border-top: 3px solid #1e1b4b;
-    }
-    .footer-net .label-sub {
-        font-size: 0.72rem; font-weight: 400; opacity: 0.75; display: block;
-    }
-    .footer-net .col-label {
-        font-size: 0.7rem; font-weight: 500; opacity: 0.65; display: block; margin-bottom: 1px;
-    }
-    .footer-expenses .col-label {
-        font-size: 0.7rem; font-weight: 500; color: #6c757d; display: block; margin-bottom: 1px;
-    }
-    .badge-reimburse {
-        background: #fee2e2; color: #991b1b; font-size: 0.75rem; font-weight: 600;
-        padding: 0.25rem 0.6rem; border-radius: 20px; white-space: nowrap; display: inline-block;
-    }
-</style>
 <script>
     {% if monthly_rows or savings_labels %}
     const monthlyLabels  = {{ monthly_labels  | tojson }};

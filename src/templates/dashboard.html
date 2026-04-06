@@ -213,13 +213,6 @@
 {% endblock %}
 
 {% block scripts %}
-<style>
-    .stat-bg-purple { background: linear-gradient(135deg, #6f42c1, #5a32a3) !important; color: #fff; }
-    .jar-list-row:hover { background: #f3f0ff; }
-    .jar-list-row.active { background: #e8e0f7; }
-    body.dark-mode .jar-list-row:hover { background: #2a2240; }
-    body.dark-mode .jar-list-row.active { background: #352a52; }
-</style>
 <script>
 {% if jar_balances_dash %}
 const jarData = {{ jar_balances_dash | tojson }};
