@@ -33,6 +33,7 @@ nav:
   - Setup & Installation: setup.md
   - CSV Import Guide: importing.md
   - Categorization Guide: categories.md
+  - Categorization ML: categorization.md
   - Adding Keywords & Categories: keywords.md
   - Budget Management: budget.md
   - Backup & Restore: backup.md
@@ -43,6 +44,7 @@ plugins:
 
 markdown_extensions:
   - admonition
+  - pymdownx.arithmatex
   - pymdownx.details
   - pymdownx.highlight:
       anchor_linenums: true

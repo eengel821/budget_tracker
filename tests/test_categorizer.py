@@ -4,6 +4,13 @@ test_categorizer.py - Tests for the categorization engine in categorizer.py
 Covers keyword matching, history matching, confidence thresholds, the combined
 categorize_transaction() function, and the bulk categorize_all_uncategorized()
 function.
+
+Phase 1 additions cover:
+  - Specificity ordering (longer keywords beat shorter ones)
+  - Negative keywords (exclude_if_contains)
+  - Description normalization (store numbers, noise stripped before matching)
+  - Short keyword whole-word matching (prevents "PSE" matching "EXPENSE")
+  - Priority field overrides
 """
 
 import pytest
@@ -21,6 +28,7 @@ from categorizer import (
     get_category_by_name,
     categorize_transaction,
     categorize_all_uncategorized,
+    normalize_description,
     HISTORY_CONFIDENCE_THRESHOLD,
     HISTORY_MIN_MATCHES,
 )
@@ -38,6 +46,31 @@ SAMPLE_KEYWORDS = [
     {"keyword": "TST*", "category": "Restaurants", "match_type": "contains"},
 ]
 
+# Extended keyword set used by Phase 1 specificity and negative keyword tests.
+# These mirror the real keywords.json structure including the new fields.
+PHASE1_KEYWORDS = [
+    # Specific gas rules — priority 10 so they are checked first
+    {"keyword": "COSTCO GAS", "category": "Gas", "match_type": "contains", "priority": 10},
+    {"keyword": "FRED MEYER GAS", "category": "Gas", "match_type": "contains", "priority": 10},
+    # Amazon Prime must beat Amazon
+    {"keyword": "AMAZON PRIME", "category": "Subscription", "match_type": "contains", "priority": 10},
+    # General rules with negative keywords
+    {"keyword": "COSTCO", "category": "Groceries", "match_type": "contains",
+     "exclude_if_contains": ["GAS", "TIRE", "OPTICAL", "PHARMACY"]},
+    {"keyword": "FRED MEYER", "category": "Groceries", "match_type": "contains",
+     "exclude_if_contains": ["GAS", "FUEL"]},
+    {"keyword": "AMAZON", "category": "Home Supplies", "match_type": "contains",
+     "exclude_if_contains": ["PRIME"]},
+    # Short keyword — whole-word matching applied automatically
+    {"keyword": "PSE", "category": "Electric", "match_type": "contains", "priority": 90},
+    # Standard rules
+    {"keyword": "STARBUCKS", "category": "Coffee Shops", "match_type": "contains"},
+    {"keyword": "NETFLIX", "category": "Subscription", "match_type": "contains"},
+    {"keyword": "HOME DEPOT", "category": "Home Improvements", "match_type": "contains"},
+    {"keyword": "SHELL", "category": "Gas", "match_type": "contains"},
+    {"keyword": "WHOLE FOODS", "category": "Groceries", "match_type": "contains"},
+]
+
 
 # --- Fixtures ---
 
@@ -49,7 +82,8 @@ def sample_categories(db):
     """
     names = [
         "Coffee Shops", "Groceries", "Subscription", "Gas",
-        "Restaurants", "Home Improvements", "Misc", "Electric"
+        "Restaurants", "Home Improvements", "Misc", "Electric",
+        "Home Supplies",
     ]
     categories = {}
     for name in names:
@@ -123,14 +157,21 @@ class TestMatchByKeywords:
         result = match_by_keywords("STARBUCKS", [])
         assert result is None
 
-    def test_returns_first_matching_keyword(self):
-        """When multiple keywords match, the first one in the list should win."""
+    def test_longer_keyword_beats_shorter_keyword(self):
+        """
+        Under specificity ordering, a longer keyword should win over a shorter
+        one regardless of their order in the list. This replaces the old
+        'first match wins' behavior.
+
+        Previously: "STAR" beat "STARBUCKS" because it came first.
+        Now: "STARBUCKS" beats "STAR" because it is more specific (longer).
+        """
         keywords = [
             {"keyword": "STAR", "category": "Misc", "match_type": "contains"},
             {"keyword": "STARBUCKS", "category": "Coffee Shops", "match_type": "contains"},
         ]
         result = match_by_keywords("STARBUCKS", keywords)
-        assert result == "Misc"  # first match wins
+        assert result == "Coffee Shops"  # longer keyword wins
 
     def test_matches_tst_prefix(self):
         """TST* prefix used by Toast POS restaurant transactions should match Restaurants."""
@@ -383,3 +424,146 @@ class TestCategorizeAllUncategorized:
         assert result["total_processed"] == 0
         assert result["auto_assigned"] == 0
         assert result["needs_review"] == 0
+
+
+# --- Tests for normalize_description() --- (Phase 1) ---
+
+class TestNormalizeDescription:
+
+    def test_strips_store_number(self):
+        """Store numbers like #0731 should be removed."""
+        assert "#" not in normalize_description("COSTCO WHSE #0731")
+
+    def test_strips_large_numeric_codes(self):
+        """Standalone numeric codes of 4+ digits should be removed."""
+        result = normalize_description("TRANSFER REF 16366448395")
+        assert "16366448395" not in result
+
+    def test_uppercases_output(self):
+        """Output should always be uppercased."""
+        assert normalize_description("starbucks") == "STARBUCKS"
+
+    def test_collapses_whitespace(self):
+        """Multiple spaces left by stripping should be collapsed to one."""
+        result = normalize_description("COSTCO  WHSE   #0731")
+        assert "  " not in result
+
+    def test_preserves_merchant_name(self):
+        """The core merchant name should survive normalization."""
+        assert "COSTCO" in normalize_description("COSTCO WHSE #0731 SEATTLE WA")
+
+    def test_wholefds_normalized(self):
+        """WHOLEFDS with store number should still contain WHOLEFDS after normalization."""
+        assert "WHOLEFDS" in normalize_description("WHOLEFDS #0421 SEATTLE WA")
+
+
+# --- Tests for Phase 1 specificity ordering --- (Phase 1) ---
+
+class TestSpecificityOrdering:
+
+    def test_costco_gas_beats_costco(self):
+        """
+        'COSTCO GAS' (length 10) should be matched before 'COSTCO' (length 6)
+        regardless of their order in the keyword list.
+        """
+        result = match_by_keywords("COSTCO GAS #0731", PHASE1_KEYWORDS)
+        assert result == "Gas", f"Expected Gas, got {result}"
+
+    def test_costco_without_gas_is_groceries(self):
+        """A plain COSTCO transaction without gas markers should be Groceries."""
+        result = match_by_keywords("COSTCO WHSE #0731", PHASE1_KEYWORDS)
+        assert result == "Groceries", f"Expected Groceries, got {result}"
+
+    def test_amazon_prime_beats_amazon(self):
+        """
+        'AMAZON PRIME' should be matched before 'AMAZON' due to greater length
+        and explicit priority=10.
+        """
+        result = match_by_keywords("AMAZON PRIME", PHASE1_KEYWORDS)
+        assert result == "Subscription", f"Expected Subscription, got {result}"
+
+    def test_amazon_without_prime_is_home_supplies(self):
+        """A plain AMAZON transaction should fall through to Home Supplies."""
+        result = match_by_keywords("AMAZON.COM PURCHASE", PHASE1_KEYWORDS)
+        assert result == "Home Supplies", f"Expected Home Supplies, got {result}"
+
+    def test_fred_meyer_gas_beats_fred_meyer(self):
+        """'FRED MEYER GAS' should be matched before 'FRED MEYER'."""
+        result = match_by_keywords("FRED MEYER GAS #1234", PHASE1_KEYWORDS)
+        assert result == "Gas", f"Expected Gas, got {result}"
+
+    def test_fred_meyer_without_gas_is_groceries(self):
+        """A plain FRED MEYER transaction should be Groceries."""
+        result = match_by_keywords("FRED MEYER #1234", PHASE1_KEYWORDS)
+        assert result == "Groceries", f"Expected Groceries, got {result}"
+
+    def test_store_number_does_not_affect_match(self):
+        """
+        Normalization should strip store numbers so 'COSTCO WHSE #0731' and
+        'COSTCO WHSE #0042' match identically.
+        """
+        kws = PHASE1_KEYWORDS
+        r1 = match_by_keywords("COSTCO WHSE #0731", kws)
+        r2 = match_by_keywords("COSTCO WHSE #0042", kws)
+        assert r1 == r2 == "Groceries"
+
+
+# --- Tests for Phase 1 negative keywords --- (Phase 1) ---
+
+class TestNegativeKeywords:
+
+    def test_costco_tire_not_groceries(self):
+        """
+        COSTCO TIRE CENTER should not match the COSTCO → Groceries rule
+        because 'TIRE' is in exclude_if_contains.
+        """
+        result = match_by_keywords("COSTCO TIRE CENTER", PHASE1_KEYWORDS)
+        assert result != "Groceries", "COSTCO TIRE should not be Groceries"
+
+    def test_costco_optical_not_groceries(self):
+        """COSTCO OPTICAL should not match COSTCO → Groceries."""
+        result = match_by_keywords("COSTCO OPTICAL", PHASE1_KEYWORDS)
+        assert result != "Groceries"
+
+    def test_costco_pharmacy_not_groceries(self):
+        """COSTCO PHARMACY should not match COSTCO → Groceries."""
+        result = match_by_keywords("COSTCO PHARMACY", PHASE1_KEYWORDS)
+        assert result != "Groceries"
+
+    def test_amazon_prime_not_home_supplies(self):
+        """
+        AMAZON PRIME should not match AMAZON → Home Supplies because 'PRIME'
+        is in exclude_if_contains for that rule. It should match the
+        AMAZON PRIME → Subscription rule instead.
+        """
+        result = match_by_keywords("AMAZON PRIME", PHASE1_KEYWORDS)
+        assert result == "Subscription"
+        assert result != "Home Supplies"
+
+    def test_fred_meyer_fuel_not_groceries(self):
+        """FRED MEYER with FUEL in description should not be Groceries."""
+        result = match_by_keywords("FRED MEYER FUEL CENTER", PHASE1_KEYWORDS)
+        assert result != "Groceries"
+
+
+# --- Tests for Phase 1 short keyword whole-word matching --- (Phase 1) ---
+
+class TestShortKeywordMatching:
+
+    def test_pse_does_not_match_inside_word(self):
+        """
+        'PSE' is below the short keyword threshold and should only match
+        as a whole word. It should not match 'EXPENSE' or similar.
+        """
+        result = match_by_keywords("EXPENSE REIMBURSEMENT", PHASE1_KEYWORDS)
+        assert result != "Electric", "PSE should not match inside EXPENSE"
+
+    def test_pse_matches_as_standalone_token(self):
+        """PSE appearing as a standalone token should match Electric."""
+        result = match_by_keywords("PSE PUGET SOUND", PHASE1_KEYWORDS)
+        assert result == "Electric", f"Expected Electric, got {result}"
+
+    def test_pse_matches_at_start_of_description(self):
+        """PSE at the start of a description should match as a whole word."""
+        result = match_by_keywords("PSE MONTHLY BILL", PHASE1_KEYWORDS)
+        assert result == "Electric", f"Expected Electric, got {result}"

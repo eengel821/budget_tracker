@@ -1,6 +1,11 @@
 {
     "keywords": [
         {
+            "keyword": "PAYROLL",
+            "category": "Eric Paycheck",
+            "match_type": "contains"
+        },
+        {
             "keyword": "DIRECT DEPOSIT",
             "category": "Income",
             "match_type": "contains"
@@ -11,8 +16,23 @@
             "match_type": "contains"
         },
         {
+            "keyword": "CHARITY",
+            "category": "Tithe/Charity",
+            "match_type": "contains"
+        },
+        {
             "keyword": "DONATION",
             "category": "Tithe/Charity",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "VANGUARD",
+            "category": "Roth IRA",
+            "match_type": "contains"
+        },
+        {
+            "keyword": "FIDELITY",
+            "category": "Roth IRA",
             "match_type": "contains"
         },
         {
@@ -71,6 +91,18 @@
             "match_type": "contains"
         },
         {
+            "keyword": "COSTCO GAS",
+            "category": "Gas",
+            "match_type": "contains",
+            "priority": 10
+        },
+        {
+            "keyword": "FRED MEYER GAS",
+            "category": "Gas",
+            "match_type": "contains",
+            "priority": 10
+        },
+        {
             "keyword": "STARBUCKS",
             "category": "Coffee Shops",
             "match_type": "contains"
@@ -108,7 +140,8 @@
         {
             "keyword": "AMAZON PRIME",
             "category": "Subscription",
-            "match_type": "contains"
+            "match_type": "contains",
+            "priority": 10
         },
         {
             "keyword": "APPLE.COM/BILL",
@@ -148,12 +181,14 @@
         {
             "keyword": "COSTCO",
             "category": "Groceries",
-            "match_type": "contains"
+            "match_type": "contains",
+            "exclude_if_contains": ["GAS", "TIRE", "OPTICAL", "PHARMACY"]
         },
         {
             "keyword": "FRED MEYER",
             "category": "Groceries",
-            "match_type": "contains"
+            "match_type": "contains",
+            "exclude_if_contains": ["GAS", "FUEL"]
         },
         {
             "keyword": "QFC",
@@ -177,11 +212,6 @@
         },
         {
             "keyword": "CHIPOTLE",
-            "category": "Restaurants",
-            "match_type": "contains"
-        },
-        {
-            "keyword": "SUBWAY",
             "category": "Restaurants",
             "match_type": "contains"
         },
@@ -223,7 +253,9 @@
         {
             "keyword": "PSE",
             "category": "Electric",
-            "match_type": "contains"
+            "match_type": "contains",
+            "priority": 90,
+            "_comment": "Short keyword — whole-word matching is applied automatically. Priority 90 ensures it is checked late, after longer more specific rules."
         },
         {
             "keyword": "CITY OF",
@@ -241,6 +273,13 @@
             "match_type": "contains"
         },
         {
+            "keyword": "SUBWAY",
+            "category": "Restaurants",
+            "match_type": "contains",
+            "exclude_if_contains": ["TRANSIT", "METRO", "TRAIN"],
+            "_comment": "SUBWAY can appear in transit descriptions in some cities."
+        },
+        {
             "keyword": "PARKING",
             "category": "Leisure",
             "match_type": "contains"
@@ -248,7 +287,9 @@
         {
             "keyword": "AMAZON",
             "category": "Home Supplies",
-            "match_type": "contains"
+            "match_type": "contains",
+            "exclude_if_contains": ["PRIME"],
+            "_comment": "AMAZON PRIME is caught by its own higher-priority rule above."
         },
         {
             "keyword": "TARGET",
@@ -293,7 +334,9 @@
         {
             "keyword": "DELTA",
             "category": "Vacation Travel",
-            "match_type": "contains"
+            "match_type": "contains",
+            "priority": 90,
+            "_comment": "DELTA is ambiguous — could match bank or other merchants. Checked late, after longer more specific rules."
         },
         {
             "keyword": "UNITED AIRLINES",
