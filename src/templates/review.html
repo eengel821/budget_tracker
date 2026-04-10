@@ -7,16 +7,34 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h4 class="mb-0 fw-bold">Review Queue</h4>
-        <small class="text-muted" id="queue-count">{{ transactions|length }} transaction{{ 's' if transactions|length != 1 else '' }} need categorizing</small>
+        <small class="text-muted" id="queue-count">
+            {{ transactions|length }} transaction{{ 's' if transactions|length != 1 else '' }} need review
+        </small>
     </div>
     {% if transactions %}
-    <form method="post" action="/categorize-all">
-        <button type="submit" class="btn btn-primary btn-sm">
-            <i class="bi bi-magic me-1"></i>Auto-categorize All
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-primary btn-sm" onclick="confirmAllPreselected()">
+            <i class="bi bi-check-all me-1"></i>Confirm All Pre-selected
         </button>
-    </form>
+        <form method="post" action="/categorize-all">
+            <button type="submit" class="btn btn-primary btn-sm">
+                <i class="bi bi-magic me-1"></i>Re-run Suggestions
+            </button>
+        </form>
+    </div>
     {% endif %}
 </div>
+
+<!-- Legend -->
+{% if transactions %}
+<div class="d-flex gap-3 mb-3 flex-wrap" style="font-size:0.8rem;">
+    <span><span class="badge-source badge-keyword">🔑 Keyword</span> — matched a keyword rule</span>
+    <span><span class="badge-source badge-history">⏱ History</span> — matched past transactions</span>
+    <span><span class="badge-source badge-ml-high">ML 95%</span> — high confidence ML prediction</span>
+    <span><span class="badge-source badge-ml-low">ML 62%</span> — low confidence, verify carefully</span>
+    <span class="text-muted">Pre-ticked rows are ready to confirm. Untick or change category to correct.</span>
+</div>
+{% endif %}
 
 {% if message %}
 <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -40,16 +58,25 @@
                         <th>Description</th>
                         <th>Account</th>
                         <th class="text-end">Amount</th>
-                        <th>Assign Category</th>
-                        <th style="width: 100px;"></th>
+                        <th style="width:90px;">Source</th>
+                        <th>Category</th>
+                        <th style="width:100px;"></th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for t in transactions %}
-                    <tr class="review-row" id="row-{{ t.id }}">
+                    {% set has_suggestion = t.suggested_category_id is not none %}
+                    {% set is_keyword  = t.suggestion_source == 'keyword' %}
+                    {% set is_history  = t.suggestion_source == 'history' %}
+                    {% set is_ml       = t.suggestion_source == 'ml' %}
+                    {% set is_ml_high  = is_ml and t.suggestion_confidence and t.suggestion_confidence >= ml_threshold %}
+                    {% set pretick     = has_suggestion and (is_keyword or is_history or is_ml_high) %}
+                    <tr class="review-row {% if pretick %}row-preticked{% endif %}"
+                        id="row-{{ t.id }}">
                         <td class="align-middle">
                             <input type="checkbox" class="form-check-input row-check"
                                 data-id="{{ t.id }}"
+                                {% if pretick %}checked{% endif %}
                                 onclick="handleCheckboxClick(event, this)">
                         </td>
                         <td class="text-muted small align-middle">{{ t.date }}</td>
@@ -58,25 +85,51 @@
                         <td class="text-end align-middle {% if t.amount < 0 %}amount-debit{% else %}amount-credit{% endif %}">
                             ${{ "%.2f"|format(t.amount|abs) }}
                         </td>
+
+                        <!-- Source badge -->
+                        <td class="align-middle">
+                            {% if is_keyword %}
+                            <span class="badge-source badge-keyword" title="Matched a keyword rule">🔑 Keyword</span>
+                            {% elif is_history %}
+                            <span class="badge-source badge-history" title="Matched past transaction history">⏱ History</span>
+                            {% elif is_ml %}
+                                {% if t.suggestion_confidence %}
+                                    {% set pct = (t.suggestion_confidence * 100)|round|int %}
+                                    {% if pct >= (ml_threshold * 100)|round|int %}
+                                    <span class="badge-source badge-ml-high" title="ML prediction — {{ pct }}% confidence">ML {{ pct }}%</span>
+                                    {% else %}
+                                    <span class="badge-source badge-ml-low" title="ML prediction — low confidence, verify carefully">ML {{ pct }}%</span>
+                                    {% endif %}
+                                {% endif %}
+                            {% else %}
+                            <span class="text-muted small">—</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Category selector -->
                         <td class="align-middle">
                             <select
                                 class="form-select form-select-sm category-select"
                                 id="category-{{ t.id }}"
-                                name="category_id">
+                                name="category_id"
+                                onchange="onCategoryChange({{ t.id }}, this)">
                                 <option value="">— Select category —</option>
                                 {% for c in categories %}
-                                <option value="{{ c.id }}" {% if t.suggested_category_id == c.id %}selected{% endif %}>
+                                <option value="{{ c.id }}"
+                                    {% if t.suggested_category_id == c.id %}selected{% endif %}>
                                     {{ c.name }}{% if t.suggested_category_id == c.id %} ★{% endif %}
                                 </option>
                                 {% endfor %}
                             </select>
                         </td>
+
+                        <!-- Actions -->
                         <td class="align-middle">
                             <div class="d-flex gap-1">
                                 <button
                                     class="btn btn-sm btn-success"
                                     onclick="assignSingle({{ t.id }})"
-                                    title="Assign category">
+                                    title="Confirm category">
                                     <i class="bi bi-check-lg"></i>
                                 </button>
                                 <button
@@ -99,13 +152,13 @@
 <div id="bulk-bar" class="bulk-bar hidden">
     <span class="count-badge"><span id="selected-count">0</span> selected</span>
     <select class="form-select form-select-sm" id="bulk-category" style="min-width:180px;">
-        <option value="">— Select category —</option>
+        <option value="">— Override category —</option>
         {% for c in categories %}
         <option value="{{ c.id }}">{{ c.name }}</option>
         {% endfor %}
     </select>
     <button class="btn btn-sm btn-primary" onclick="applyBulk()">
-        <i class="bi bi-check-lg me-1"></i>Apply to Selected
+        <i class="bi bi-check-lg me-1"></i>Confirm Selected
     </button>
     <button class="btn btn-sm btn-outline-warning" onclick="excludeBulk()">
         <i class="bi bi-eye-slash me-1"></i>Exclude Selected
@@ -131,5 +184,40 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+    /* Source badges */
+    .badge-source {
+        font-size: 0.7rem; font-weight: 600; padding: 0.2rem 0.5rem;
+        border-radius: 0.25rem; white-space: nowrap; display: inline-block;
+    }
+    .badge-keyword { background: #dbeafe; color: #1e40af; }
+    .badge-history { background: #fef3c7; color: #92400e; }
+    .badge-ml-high { background: #d1fae5; color: #065f46; }
+    .badge-ml-low  { background: #fee2e2; color: #991b1b; }
+
+    /* Pre-ticked rows get a subtle highlight */
+    tr.row-preticked { background-color: #f0fdf4 !important; }
+    tr.selected-row  { background-color: #eef2ff !important; }
+
+    body.dark-mode .badge-keyword { background: #1e3a5f; color: #93c5fd; }
+    body.dark-mode .badge-history { background: #4a3200; color: #fcd38d; }
+    body.dark-mode .badge-ml-high { background: #064e3b; color: #6ee7b7; }
+    body.dark-mode .badge-ml-low  { background: #4a1a1a; color: #fca5a5; }
+    body.dark-mode tr.row-preticked { background-color: #0d2b1f !important; }
+
+    /* Bulk bar */
+    .bulk-bar {
+        position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%);
+        background: #1e293b; color: #fff; border-radius: 12px;
+        padding: 0.75rem 1.25rem; display: flex; align-items: center;
+        gap: 0.75rem; box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+        z-index: 1000; white-space: nowrap; transition: opacity 0.2s, transform 0.2s;
+    }
+    .bulk-bar.hidden { opacity: 0; pointer-events: none; transform: translateX(-50%) translateY(1rem); }
+    .bulk-bar .count-badge {
+        background: #4f46e5; border-radius: 20px;
+        padding: 0.2rem 0.65rem; font-size: 0.85rem; font-weight: 600;
+    }
+</style>
 <script src="/static/js/review.js"></script>
 {% endblock %}

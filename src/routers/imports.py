@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from categorizer import categorize_all_uncategorized
+from categorizer import categorize_all_uncategorized, suggest_all_unprocessed
 from database import get_db
 from deps import src_path
 from import_transactions import load_exclude_keywords
@@ -201,6 +201,11 @@ async def import_transactions_endpoint(
 
         db.commit()
 
+        # Run categorization suggestions on the newly imported transactions.
+        # Suggestions are stored on the transaction but category_id is NOT set —
+        # the user confirms them in the review queue.
+        suggest_all_unprocessed(db)
+
     finally:
         os.unlink(tmp_path)
 
@@ -312,7 +317,7 @@ def categorize_all(db: Session = Depends(get_db)):
     """
     result  = categorize_all_uncategorized(db)
     message = (
-        f"Auto-categorized {result['auto_assigned']} transactions. "
-        f"{result['needs_review']} still need review."
+        f"Suggested categories for {result['auto_assigned']} transactions. "
+        f"{result['needs_review']} could not be predicted — select manually."
     )
     return RedirectResponse(url=f"/review?message={message}", status_code=303)

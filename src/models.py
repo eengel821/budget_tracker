@@ -45,7 +45,16 @@ class Category(Base):
     is_expense     = Column(Boolean, default=True)
     is_savings     = Column(Boolean, default=False)
 
-    transactions         = relationship("Transaction", back_populates="category")
+    transactions = relationship(
+        "Transaction",
+        foreign_keys="Transaction.category_id",
+        back_populates="category",
+    )
+    suggested_transactions = relationship(
+        "Transaction",
+        foreign_keys="Transaction.suggested_category_id",
+        back_populates="suggested_category",
+    )
     savings_allocations  = relationship("SavingsAllocation", back_populates="category")
     template_items       = relationship("AllocationTemplateItem", back_populates="category")
 
@@ -58,6 +67,19 @@ class Transaction(Base):
     child transactions (is_split=True), or left as normal uncategorized
     entries pending review. Split children reference their parent via
     parent_id and are marked excluded=True to prevent double-counting.
+
+    The suggestion columns store the categorization engine's prediction prior
+    to user confirmation in the review queue:
+
+      suggested_category_id — FK to the predicted Category (nullable)
+      suggestion_confidence — float 0.0–1.0; None for keyword/history matches
+                              since those are deterministic rather than probabilistic
+      suggestion_source     — "keyword", "history", or "ml"; used by the review
+                              queue UI to show the appropriate badge and pre-tick
+                              rows that are likely correct
+
+    Once the user confirms a suggestion in the review queue, category_id is set
+    and all three suggestion columns are cleared.
     """
     __tablename__ = "transactions"
 
@@ -72,11 +94,27 @@ class Transaction(Base):
     account_id  = Column(Integer, ForeignKey("accounts.id"), nullable=True)
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
 
-    account  = relationship("Account", back_populates="transactions")
-    category = relationship("Category", back_populates="transactions")
-    splits   = relationship("Transaction",
-                            backref=backref("parent", remote_side="Transaction.id"),
-                            foreign_keys="Transaction.parent_id")
+    # Categorization engine suggestion — populated at import time, cleared on confirm
+    suggested_category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
+    suggestion_confidence  = Column(Float, nullable=True)
+    suggestion_source      = Column(String, nullable=True)
+
+    account            = relationship("Account", back_populates="transactions")
+    category           = relationship(
+        "Category",
+        foreign_keys=[category_id],
+        back_populates="transactions",
+    )
+    suggested_category = relationship(
+        "Category",
+        foreign_keys=[suggested_category_id],
+        back_populates="suggested_transactions",
+    )
+    splits = relationship(
+        "Transaction",
+        backref=backref("parent", remote_side="Transaction.id"),
+        foreign_keys="Transaction.parent_id",
+    )
 
 
 class SavingsTransaction(Base):
@@ -99,8 +137,6 @@ class SavingsTransaction(Base):
     account     = relationship("Account", back_populates="savings_transactions")
     allocations = relationship("SavingsAllocation", back_populates="savings_transaction",
                                cascade="all, delete-orphan")
-    # cascade="all, delete-orphan" means if you delete a SavingsTransaction,
-    # all its SavingsAllocation rows are automatically deleted too.
 
 
 class SavingsAllocation(Base):

@@ -198,3 +198,72 @@ async function excludeBulk() {
     if (succeeded > 0) removeRows(ids.slice(0, succeeded));
     if (failed > 0) alert(`${failed} transaction(s) failed to exclude. Please try again.`);
 }
+
+// ── Suggestion-aware category change ─────────────────────────────────────────
+
+/**
+ * Called when the user manually changes a category dropdown.
+ * Unticks the row checkbox if the user selected a different category than
+ * the suggestion — this signals they want to override, not just confirm.
+ * Re-ticks the checkbox so it stays in the confirmation batch either way.
+ * @param {number} transactionId
+ * @param {HTMLSelectElement} selectEl
+ */
+function onCategoryChange(transactionId, selectEl) {
+    // Always ensure the row checkbox is ticked when a category is selected,
+    // so changing a suggestion still keeps the row in the confirm batch.
+    const cb = document.querySelector(`.row-check[data-id="${transactionId}"]`);
+    if (cb && selectEl.value) {
+        cb.checked = true;
+        updateSelection();
+    }
+}
+
+// ── Confirm all pre-ticked rows ───────────────────────────────────────────────
+
+/**
+ * Confirms all rows that are currently checked. Each row uses its dropdown's
+ * currently selected value, which may be the original suggestion or a user
+ * correction. Rows without a selected category are skipped.
+ *
+ * This is the primary "fast path" for confirming a batch of suggestions —
+ * scan the queue, untick or correct the wrong ones, then click this button.
+ */
+async function confirmAllPreselected() {
+    const checked = [...document.querySelectorAll(".row-check:checked")];
+    if (!checked.length) {
+        alert("No rows are selected. Check the rows you want to confirm first.");
+        return;
+    }
+
+    let confirmed = 0;
+    let skipped   = 0;
+    const ids     = [];
+
+    for (const cb of checked) {
+        const id       = parseInt(cb.dataset.id);
+        const select   = document.getElementById("category-" + id);
+        const categoryId = select?.value;
+
+        if (!categoryId) {
+            skipped++;
+            continue;
+        }
+
+        const response = await fetch(`/transactions/${id}/category`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ category_id: parseInt(categoryId) })
+        });
+
+        if (response.ok) {
+            ids.push(id);
+            confirmed++;
+        }
+    }
+
+    if (ids.length) removeRows(ids);
+    if (skipped > 0) {
+        alert(`${skipped} row${skipped !== 1 ? "s" : ""} skipped — no category selected. Use the dropdown to assign one.`);
+    }
+}

@@ -304,20 +304,29 @@ def review_page(
     db: Session = Depends(get_db),
     message: Optional[str] = None,
 ):
-    """Render the uncategorized transaction review queue."""
+    """
+    Render the uncategorized transaction review queue.
+
+    Shows all transactions where category_id IS NULL (not yet confirmed).
+    Suggestion data (suggested_category_id, suggestion_confidence,
+    suggestion_source) is already on the Transaction model and available
+    directly in the template — no extra query needed.
+    """
     transactions = db.query(Transaction).filter(
         Transaction.category_id.is_(None),
         Transaction.excluded == False,  # noqa: E712
+        Transaction.parent_id.is_(None),
     ).order_by(Transaction.date.desc()).all()
 
     categories = db.query(Category).order_by(Category.name).all()
 
     return templates.TemplateResponse(request, "review.html", {
-        "active_page":        "review",
-        "transactions":       transactions,
-        "categories":         categories,
+        "active_page":         "review",
+        "transactions":        transactions,
+        "categories":          categories,
         "uncategorized_count": len(transactions),
-        "message":            message,
+        "message":             message,
+        "ml_threshold":        0.75,  # passed to template for badge coloring
     })
 
 

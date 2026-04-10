@@ -8,6 +8,7 @@ description/notes editing, deletion, exclusion toggling, and splitting.
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from categorizer import confirm_category
 from database import get_db
 from models import Category, Transaction
 from schemas import CategoryAssignment, SplitRequest, TransactionPatch
@@ -72,8 +73,9 @@ def assign_category(
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
 
-    transaction.category_id = body.category_id
-    db.commit()
+    # confirm_category assigns category_id, clears suggestion columns, and
+    # triggers an ML model retrain so this correction is learned immediately.
+    confirm_category(transaction, body.category_id, db)
 
     return {
         "message":       f"Category '{category.name}' assigned",
