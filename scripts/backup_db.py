@@ -19,8 +19,8 @@ from datetime import datetime
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-DB_PATH     = Path(__file__).resolve().parent / "data" / "budget.db"
-BACKUP_DIR  = Path(__file__).resolve().parent / "backups"
+DB_PATH     = Path(__file__).resolve().parent.parent / "data" / "budget.db"
+BACKUP_DIR  = Path(__file__).resolve().parent.parent / "backups"
 MAX_BACKUPS = 30  # keep the most recent 30 backups
 
 

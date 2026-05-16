@@ -44,6 +44,34 @@
 {% endif %}
 
 {% if transactions %}
+<!-- Inline bulk action bar — appears above table when rows are selected -->
+<div id="bulk-bar" class="bulk-bar-inline d-none mb-2">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="fw-semibold text-muted small"><span id="selected-count">0</span> selected</span>
+        <div class="vr"></div>
+        <button class="btn btn-sm btn-success" onclick="confirmChecked()">
+            <i class="bi bi-check-lg me-1"></i>Confirm Selected
+        </button>
+        <div class="d-flex gap-1 align-items-center">
+            <select class="form-select form-select-sm" id="bulk-category" style="min-width:160px;">
+                <option value="">— Override all —</option>
+                {% for c in categories %}
+                <option value="{{ c.id }}">{{ c.name }}</option>
+                {% endfor %}
+            </select>
+            <button class="btn btn-sm btn-primary" onclick="applyBulk()" title="Apply one category to all selected rows">
+                <i class="bi bi-arrow-right"></i>
+            </button>
+        </div>
+        <button class="btn btn-sm btn-outline-warning" onclick="excludeBulk()">
+            <i class="bi bi-eye-slash me-1"></i>Exclude
+        </button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="clearSelection()">
+            <i class="bi bi-x me-1"></i>Clear
+        </button>
+    </div>
+</div>
+
 <div class="card">
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -117,7 +145,7 @@
                                 {% for c in categories %}
                                 <option value="{{ c.id }}"
                                     {% if t.suggested_category_id == c.id %}selected{% endif %}>
-                                    {{ c.name }}{% if t.suggested_category_id == c.id %} ★{% endif %}
+                                    {{ c.name }}
                                 </option>
                                 {% endfor %}
                             </select>
@@ -127,9 +155,11 @@
                         <td class="align-middle">
                             <div class="d-flex gap-1">
                                 <button
-                                    class="btn btn-sm btn-success"
+                                    id="confirm-btn-{{ t.id }}"
+                                    class="btn btn-sm {% if t.suggested_category_id %}btn-success{% else %}btn-outline-secondary{% endif %}"
                                     onclick="assignSingle({{ t.id }})"
-                                    title="Confirm category">
+                                    title="Confirm category"
+                                    {% if not t.suggested_category_id %}disabled{% endif %}>
                                     <i class="bi bi-check-lg"></i>
                                 </button>
                                 <button
@@ -148,25 +178,7 @@
     </div>
 </div>
 
-<!-- Floating bulk action bar -->
-<div id="bulk-bar" class="bulk-bar hidden">
-    <span class="count-badge"><span id="selected-count">0</span> selected</span>
-    <select class="form-select form-select-sm" id="bulk-category" style="min-width:180px;">
-        <option value="">— Override category —</option>
-        {% for c in categories %}
-        <option value="{{ c.id }}">{{ c.name }}</option>
-        {% endfor %}
-    </select>
-    <button class="btn btn-sm btn-primary" onclick="applyBulk()">
-        <i class="bi bi-check-lg me-1"></i>Confirm Selected
-    </button>
-    <button class="btn btn-sm btn-outline-warning" onclick="excludeBulk()">
-        <i class="bi bi-eye-slash me-1"></i>Exclude Selected
-    </button>
-    <button class="btn btn-sm btn-outline-light" onclick="clearSelection()">
-        <i class="bi bi-x me-1"></i>Clear
-    </button>
-</div>
+
 
 {% else %}
 <div class="card">
@@ -197,6 +209,7 @@
 
     /* Pre-ticked rows get a subtle highlight */
     tr.row-preticked { background-color: #f0fdf4 !important; }
+
     tr.selected-row  { background-color: #eef2ff !important; }
 
     body.dark-mode .badge-keyword { background: #1e3a5f; color: #93c5fd; }
@@ -205,18 +218,17 @@
     body.dark-mode .badge-ml-low  { background: #4a1a1a; color: #fca5a5; }
     body.dark-mode tr.row-preticked { background-color: #0d2b1f !important; }
 
-    /* Bulk bar */
-    .bulk-bar {
-        position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%);
-        background: #1e293b; color: #fff; border-radius: 12px;
-        padding: 0.75rem 1.25rem; display: flex; align-items: center;
-        gap: 0.75rem; box-shadow: 0 8px 32px rgba(0,0,0,0.25);
-        z-index: 1000; white-space: nowrap; transition: opacity 0.2s, transform 0.2s;
+    /* Inline bulk action bar */
+    .bulk-bar-inline {
+        background: #f8f9fc;
+        border: 1px solid #e3e6f0;
+        border-radius: 8px;
+        padding: 0.6rem 1rem;
+        transition: opacity 0.15s;
     }
-    .bulk-bar.hidden { opacity: 0; pointer-events: none; transform: translateX(-50%) translateY(1rem); }
-    .bulk-bar .count-badge {
-        background: #4f46e5; border-radius: 20px;
-        padding: 0.2rem 0.65rem; font-size: 0.85rem; font-weight: 600;
+    body.dark-mode .bulk-bar-inline {
+        background: #22223b;
+        border-color: #3a3a55;
     }
 </style>
 <script src="/static/js/review.js"></script>

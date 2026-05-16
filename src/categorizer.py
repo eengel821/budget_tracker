@@ -40,6 +40,7 @@ Phase 1 keyword improvements:
 import json
 import re
 import logging
+import threading
 from pathlib import Path
 from collections import Counter
 from typing import Optional
@@ -351,7 +352,6 @@ class CategorizationModel:
         clf = LogisticRegression(
             C=1.0,
             max_iter=1000,
-            multi_class="multinomial",
             solver="lbfgs",
         )
         clf.fit(X, labels)
@@ -421,18 +421,25 @@ def retrain_model(db: Session) -> None:
     """
     Retrain the ML model from scratch on all confirmed transactions.
 
-    Called automatically after each user confirmation in the review queue
-    so corrections are learned immediately. At the current data scale this
-    takes milliseconds.
+    Runs in a background thread so the HTTP response returns immediately
+    and the user is not blocked waiting for training to complete. At the
+    current data scale training takes well under a second, but even so
+    there is no reason to make the user wait for it.
 
     Args:
         db: Active SQLAlchemy session.
     """
-    global _model
-    _model = CategorizationModel()
-    success = _model.train(db)
-    if not success:
-        logger.info("Model retrain skipped — insufficient labeled data.")
+    def _train():
+        global _model
+        _model = CategorizationModel()
+        success = _model.train(db)
+        if not success:
+            logger.info("Model retrain skipped — insufficient labeled data.")
+        else:
+            logger.info("Model retrain complete (background).")
+
+    thread = threading.Thread(target=_train, daemon=True)
+    thread.start()
 
 
 # ── Core public interface ─────────────────────────────────────────────────────

@@ -7,19 +7,31 @@
  * without a full page reload. A floating bulk action bar appears when one or more
  * rows are selected.
  *
- * Features:
- *   - Shift-click range selection across checkboxes
- *   - Single-row assign and exclude actions
- *   - Bulk assign and bulk exclude with parallel API calls
- *   - Live queue count and navbar badge updates
- *   - Auto-reload when the queue is empty
+ * Checkbox states:
+ *   - disabled (grey)  — no category selected for this row
+ *   - enabled + green  — category selected, ready to confirm
+ *   - checked + green  — pre-selected by the suggestion engine, ready to confirm
+ *
+ * Bulk bar actions:
+ *   - "Confirm Selected" — confirms each checked row using its own dropdown value
+ *   - "Override Category" + "Apply Override" — sets all checked rows to one category
+ *   - "Exclude Selected" — excludes all checked rows
  */
 
-/** @type {HTMLInputElement|null} The last checkbox that was clicked, for shift-range selection. */
+/** @type {HTMLInputElement|null} Last clicked checkbox, for shift-range selection. */
 let lastChecked = null;
+
+// ── Initialization ────────────────────────────────────────────────────────────
+
+document.addEventListener("DOMContentLoaded", () => {
+    updateSelection();
+});
+
+// ── Checkbox handling ─────────────────────────────────────────────────────────
 
 /**
  * Handles checkbox clicks with shift-click range selection support.
+ * Only enabled (non-disabled) checkboxes participate in range selection.
  * @param {MouseEvent} e
  * @param {HTMLInputElement} cb - The checkbox that was clicked.
  */
@@ -29,18 +41,20 @@ function handleCheckboxClick(e, cb) {
         const from = checkboxes.indexOf(lastChecked);
         const to   = checkboxes.indexOf(cb);
         const [start, end] = from < to ? [from, to] : [to, from];
-        checkboxes.slice(start, end + 1).forEach(el => el.checked = cb.checked);
+        checkboxes.slice(start, end + 1).forEach(el => { el.checked = cb.checked; });
     }
     lastChecked = cb;
     updateSelection();
 }
 
 /**
- * Selects or deselects all row checkboxes via the header checkbox.
+ * Selects or deselects all enabled row checkboxes via the header checkbox.
  * @param {HTMLInputElement} cb - The select-all checkbox.
  */
 function toggleAll(cb) {
-    document.querySelectorAll(".row-check").forEach(el => el.checked = cb.checked);
+    document.querySelectorAll(".row-check").forEach(el => {
+        el.checked = cb.checked;
+    });
     updateSelection();
 }
 
@@ -70,22 +84,45 @@ function updateSelection() {
     const ids = getSelectedIds();
     document.getElementById("selected-count").textContent = ids.length;
     const bar = document.getElementById("bulk-bar");
-    bar.classList.toggle("hidden", ids.length === 0);
+    bar.classList.toggle("d-none", ids.length === 0);
 
     document.querySelectorAll(".row-check").forEach(cb => {
-        document.getElementById("row-" + cb.dataset.id)
-            .classList.toggle("selected-row", cb.checked);
+        const row = document.getElementById("row-" + cb.dataset.id);
+        if (row) row.classList.toggle("selected-row", cb.checked);
     });
 
-    const all = document.querySelectorAll(".row-check");
-    document.getElementById("select-all").indeterminate =
-        ids.length > 0 && ids.length < all.length;
-    document.getElementById("select-all").checked =
-        ids.length > 0 && ids.length === all.length;
+    const all     = [...document.querySelectorAll(".row-check")];
+    const checked = all.filter(cb => cb.checked);
+    const selectAll = document.getElementById("select-all");
+    selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+    selectAll.checked       = all.length > 0 && checked.length === all.length;
 }
 
+// ── Category dropdown change ───────────────────────────────────────────────────
+
 /**
- * Fades out and removes rows for the given transaction IDs, then updates the queue count.
+ * Called when the user changes a row's category dropdown.
+ * Enables the confirm button (green) when a category is selected, disables when not.
+ * @param {number} transactionId
+ * @param {HTMLSelectElement} selectEl
+ */
+function onCategoryChange(transactionId, selectEl) {
+    const btn = document.getElementById(`confirm-btn-${transactionId}`);
+    if (!btn) return;
+
+    if (selectEl.value) {
+        btn.disabled = false;
+        btn.className = "btn btn-sm btn-success";
+    } else {
+        btn.disabled = true;
+        btn.className = "btn btn-sm btn-outline-secondary";
+    }
+}
+
+// ── Row removal ───────────────────────────────────────────────────────────────
+
+/**
+ * Fades out and removes rows for the given transaction IDs, then updates count.
  * @param {number[]} ids
  */
 function removeRows(ids) {
@@ -100,15 +137,15 @@ function removeRows(ids) {
 }
 
 /**
- * Updates the queue subtitle and navbar badge to reflect the current remaining count.
- * Reloads the page if the queue reaches zero (to show the "All caught up" state).
+ * Updates the queue subtitle and navbar badge.
+ * Reloads the page when the queue reaches zero.
  */
 function updateCount() {
     const remaining = document.querySelectorAll("tbody tr").length;
 
     const subtitle = document.getElementById("queue-count");
     if (subtitle) {
-        subtitle.textContent = remaining + " transaction" + (remaining !== 1 ? "s" : "") + " need categorizing";
+        subtitle.textContent = remaining + " transaction" + (remaining !== 1 ? "s" : "") + " need review";
     }
 
     const badge = document.querySelector(".nav-link .badge");
@@ -120,8 +157,10 @@ function updateCount() {
     if (remaining === 0) location.reload();
 }
 
+// ── Single row actions ────────────────────────────────────────────────────────
+
 /**
- * Assigns the selected category to a single transaction and removes its row.
+ * Confirms the category shown in a single row's dropdown and removes the row.
  * @param {number} transactionId
  */
 async function assignSingle(transactionId) {
@@ -153,15 +192,58 @@ async function excludeSingle(transactionId) {
     else { alert("Failed to exclude transaction. Please try again."); }
 }
 
+// ── Bulk actions ──────────────────────────────────────────────────────────────
+
 /**
- * Assigns the selected bulk category to all checked transactions in parallel.
- * Successfully updated rows are removed; failures are reported in aggregate.
+ * Confirms all checked rows using each row's own dropdown value.
+ * Rows without a category selected are skipped with a warning.
+ * This is also called by "Confirm All Pre-selected" in the page header.
+ */
+async function confirmChecked() {
+    const checked = [...document.querySelectorAll(".row-check:checked")];
+    if (!checked.length) {
+        alert("No rows are selected.");
+        return;
+    }
+
+    const ids     = [];
+    let skipped   = 0;
+
+    for (const cb of checked) {
+        const id         = parseInt(cb.dataset.id);
+        const select     = document.getElementById("category-" + id);
+        const categoryId = select?.value;
+
+        if (!categoryId) { skipped++; continue; }
+
+        const response = await fetch(`/transactions/${id}/category`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ category_id: parseInt(categoryId) })
+        });
+
+        if (response.ok) { ids.push(id); }
+    }
+
+    if (ids.length) removeRows(ids);
+    if (skipped > 0) {
+        alert(`${skipped} row${skipped !== 1 ? "s" : ""} skipped — no category selected.`);
+    }
+}
+
+/**
+ * Applies a single override category to all checked rows.
+ * Uses the bulk-category dropdown in the floating bar.
+ * Only fires if the user has explicitly chosen an override category.
  */
 async function applyBulk() {
     const ids        = getSelectedIds();
     const select     = document.getElementById("bulk-category");
     const categoryId = select.value;
-    if (!categoryId) { alert("Please select a category first."); return; }
+    if (!categoryId) {
+        alert("Choose an override category from the dropdown first, or use \"Confirm Selected\" to confirm each row's existing category.");
+        return;
+    }
 
     const results = await Promise.all(
         ids.map(id => fetch(`/transactions/${id}/category`, {
@@ -182,10 +264,10 @@ async function applyBulk() {
 
 /**
  * Excludes all checked transactions in parallel.
- * Successfully excluded rows are removed; failures are reported in aggregate.
  */
 async function excludeBulk() {
     const ids = getSelectedIds();
+    if (!ids.length) return;
     if (!confirm(`Exclude ${ids.length} transaction${ids.length !== 1 ? "s" : ""} from reports?\n\nYou can restore them using "Show Excluded" on the transactions page.`)) return;
 
     const results = await Promise.all(
@@ -199,71 +281,10 @@ async function excludeBulk() {
     if (failed > 0) alert(`${failed} transaction(s) failed to exclude. Please try again.`);
 }
 
-// ── Suggestion-aware category change ─────────────────────────────────────────
-
 /**
- * Called when the user manually changes a category dropdown.
- * Unticks the row checkbox if the user selected a different category than
- * the suggestion — this signals they want to override, not just confirm.
- * Re-ticks the checkbox so it stays in the confirmation batch either way.
- * @param {number} transactionId
- * @param {HTMLSelectElement} selectEl
- */
-function onCategoryChange(transactionId, selectEl) {
-    // Always ensure the row checkbox is ticked when a category is selected,
-    // so changing a suggestion still keeps the row in the confirm batch.
-    const cb = document.querySelector(`.row-check[data-id="${transactionId}"]`);
-    if (cb && selectEl.value) {
-        cb.checked = true;
-        updateSelection();
-    }
-}
-
-// ── Confirm all pre-ticked rows ───────────────────────────────────────────────
-
-/**
- * Confirms all rows that are currently checked. Each row uses its dropdown's
- * currently selected value, which may be the original suggestion or a user
- * correction. Rows without a selected category are skipped.
- *
- * This is the primary "fast path" for confirming a batch of suggestions —
- * scan the queue, untick or correct the wrong ones, then click this button.
+ * Confirms all currently checked rows using their individual dropdown values.
+ * Called by the "Confirm All Pre-selected" button in the page header.
  */
 async function confirmAllPreselected() {
-    const checked = [...document.querySelectorAll(".row-check:checked")];
-    if (!checked.length) {
-        alert("No rows are selected. Check the rows you want to confirm first.");
-        return;
-    }
-
-    let confirmed = 0;
-    let skipped   = 0;
-    const ids     = [];
-
-    for (const cb of checked) {
-        const id       = parseInt(cb.dataset.id);
-        const select   = document.getElementById("category-" + id);
-        const categoryId = select?.value;
-
-        if (!categoryId) {
-            skipped++;
-            continue;
-        }
-
-        const response = await fetch(`/transactions/${id}/category`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ category_id: parseInt(categoryId) })
-        });
-
-        if (response.ok) {
-            ids.push(id);
-            confirmed++;
-        }
-    }
-
-    if (ids.length) removeRows(ids);
-    if (skipped > 0) {
-        alert(`${skipped} row${skipped !== 1 ? "s" : ""} skipped — no category selected. Use the dropdown to assign one.`);
-    }
+    await confirmChecked();
 }
