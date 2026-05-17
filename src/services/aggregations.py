@@ -19,7 +19,7 @@ Split transaction handling:
 """
 
 from datetime import date, datetime
-from sqlalchemy import extract, func
+from sqlalchemy import case, extract, func
 from sqlalchemy.orm import Session
 
 from models import Category, Transaction
@@ -142,13 +142,17 @@ def get_monthly_spending(db: Session, year: int, month: int):
         and total fields. total is negative for net expenses, positive for
         net credits/refunds.
     """
+    effective_date = case(
+        (Transaction.budget_month != None, Transaction.budget_month),  # noqa: E711
+        else_=Transaction.date,
+    )
     return db.query(
         Category.name.label("category_name"),
         Category.monthly_budget.label("monthly_budget"),
         func.sum(Transaction.amount).label("total"),
     ).join(Transaction, Transaction.category_id == Category.id).filter(
-        extract("year",  Transaction.date) == year,
-        extract("month", Transaction.date) == month,
+        extract("year",  effective_date) == year,
+        extract("month", effective_date) == month,
         Transaction.is_split == False,  # noqa: E712
         (Transaction.excluded == False) | (Transaction.parent_id != None),  # noqa: E712
         Category.is_income == False,  # noqa: E712
@@ -171,13 +175,17 @@ def get_monthly_income(db: Session, year: int, month: int):
         List of SQLAlchemy Row objects with category_name, monthly_budget,
         and total fields, ordered descending by total.
     """
+    effective_date = case(
+        (Transaction.budget_month != None, Transaction.budget_month),  # noqa: E711
+        else_=Transaction.date,
+    )
     return db.query(
         Category.name.label("category_name"),
         Category.monthly_budget.label("monthly_budget"),
         func.sum(Transaction.amount).label("total"),
     ).join(Transaction, Transaction.category_id == Category.id).filter(
-        extract("year",  Transaction.date) == year,
-        extract("month", Transaction.date) == month,
+        extract("year",  effective_date) == year,
+        extract("month", effective_date) == month,
         Transaction.amount > 0,
         Transaction.is_split == False,  # noqa: E712
         (Transaction.excluded == False) | (Transaction.parent_id != None),  # noqa: E712
@@ -201,11 +209,15 @@ def get_total_expenses(db: Session, year: int, month: int) -> float:
     Returns:
         A negative float representing net outflow, or 0.0 if no expenses.
     """
+    effective_date = case(
+        (Transaction.budget_month != None, Transaction.budget_month),  # noqa: E711
+        else_=Transaction.date,
+    )
     categorized = db.query(func.sum(Transaction.amount))\
         .join(Category, Transaction.category_id == Category.id)\
         .filter(
-            extract("year",  Transaction.date) == year,
-            extract("month", Transaction.date) == month,
+            extract("year",  effective_date) == year,
+            extract("month", effective_date) == month,
             Transaction.is_split == False,  # noqa: E712
             (Transaction.excluded == False) | (Transaction.parent_id != None),  # noqa: E712
             Category.is_income == False,  # noqa: E712
@@ -213,8 +225,8 @@ def get_total_expenses(db: Session, year: int, month: int) -> float:
 
     uncategorized = db.query(func.sum(Transaction.amount))\
         .filter(
-            extract("year",  Transaction.date) == year,
-            extract("month", Transaction.date) == month,
+            extract("year",  effective_date) == year,
+            extract("month", effective_date) == month,
             Transaction.excluded == False,  # noqa: E712
             Transaction.is_split == False,  # noqa: E712
             Transaction.category_id.is_(None),
@@ -238,11 +250,15 @@ def get_total_income(db: Session, year: int, month: int) -> float:
     Returns:
         A positive float representing total income, or 0.0 if none.
     """
+    effective_date = case(
+        (Transaction.budget_month != None, Transaction.budget_month),  # noqa: E711
+        else_=Transaction.date,
+    )
     return db.query(func.sum(Transaction.amount))\
         .join(Category, Transaction.category_id == Category.id)\
         .filter(
-            extract("year",  Transaction.date) == year,
-            extract("month", Transaction.date) == month,
+            extract("year",  effective_date) == year,
+            extract("month", effective_date) == month,
             Transaction.amount > 0,
             Transaction.is_split == False,  # noqa: E712
             (Transaction.excluded == False) | (Transaction.parent_id != None),  # noqa: E712

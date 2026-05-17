@@ -46,7 +46,9 @@ CAT_DATA.forEach((cat, i) => {
                     data: cat.monthly_spent,
                     backgroundColor: cat.monthly_spent.map(v =>
                         cat.budget === 0 ? "rgba(234,130,50,0.75)" :
-                        v > cat.budget   ? "rgba(231,74,59,0.75)" : "rgba(28,200,138,0.7)"
+                        v > cat.budget * 1.15 ? "rgba(231,74,59,0.75)" :
+                        v > cat.budget * 1.05 ? "rgba(246,194,62,0.85)" :
+                                                "rgba(28,200,138,0.7)"
                     ),
                     borderRadius: 2,
                 }
@@ -88,7 +90,9 @@ function openDetail(i) {
             data: cat.monthly_spent,
             backgroundColor: cat.monthly_spent.map(v =>
                 cat.budget === 0 ? "rgba(234,130,50,0.8)" :
-                v > cat.budget   ? "rgba(231,74,59,0.75)" : "rgba(28,200,138,0.75)"
+                v > cat.budget * 1.15 ? "rgba(231,74,59,0.75)" :
+                v > cat.budget * 1.05 ? "rgba(246,194,62,0.85)" :
+                                        "rgba(28,200,138,0.75)"
             ),
             borderRadius: 4,
             order: 2,
@@ -100,7 +104,10 @@ function openDetail(i) {
             borderColor: "#6366f1",
             backgroundColor: "rgba(99,102,241,0.07)",
             pointBackgroundColor: cat.over_under.map(v =>
-                v === null ? "transparent" : v >= 0 ? "#1cc88a" : "#e74a3b"
+                v === null   ? "transparent" :
+                v < -(cat.budget * 0.15) ? "#e74a3b" :
+                v < -(cat.budget * 0.05) ? "#f6c23e" :
+                                           "#1cc88a"
             ),
             pointRadius: 5,
             pointHoverRadius: 7,

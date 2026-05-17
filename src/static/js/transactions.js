@@ -515,3 +515,89 @@ function resetImport() {
     document.getElementById('import-result').classList.remove('d-flex');
     document.getElementById('import-error').classList.add('d-none');
 }
+
+// ── Budget Month Modal ────────────────────────────────────────────────────────
+
+/** @type {number|null} ID of the transaction currently being edited for budget month. */
+let budgetMonthTxnId = null;
+
+/**
+ * Opens the budget month override modal for a transaction.
+ * Pre-fills the month input if an override is already set.
+ * @param {number} txnId
+ * @param {string} currentMonth - Current budget_month in YYYY-MM format, or empty string.
+ */
+function openBudgetMonthModal(txnId, currentMonth) {
+    budgetMonthTxnId = txnId;
+    document.getElementById("budget-month-input").value = currentMonth || "";
+    document.getElementById("budget-month-error").classList.add("d-none");
+    new bootstrap.Modal(document.getElementById("budgetMonthModal")).show();
+}
+
+/**
+ * Saves the budget month override for the current transaction.
+ * Updates the date cell badge in the table without a page reload.
+ */
+async function saveBudgetMonth() {
+    const month  = document.getElementById("budget-month-input").value;
+    const errEl  = document.getElementById("budget-month-error");
+
+    const resp = await fetch(`/api/transactions/${budgetMonthTxnId}/budget_month?month=${encodeURIComponent(month)}`, {
+        method: "PATCH",
+    });
+
+    if (resp.ok) {
+        const data = await resp.json();
+        bootstrap.Modal.getInstance(document.getElementById("budgetMonthModal")).hide();
+        updateBudgetMonthBadge(budgetMonthTxnId, data.budget_month);
+    } else {
+        const err = await resp.json().catch(() => ({}));
+        errEl.textContent = err.detail || "Failed to save. Please try again.";
+        errEl.classList.remove("d-none");
+    }
+}
+
+/**
+ * Clears the budget month override, reverting to the transaction's real date.
+ */
+async function clearBudgetMonth() {
+    const resp = await fetch(`/api/transactions/${budgetMonthTxnId}/budget_month`, {
+        method: "PATCH",
+    });
+
+    if (resp.ok) {
+        bootstrap.Modal.getInstance(document.getElementById("budgetMonthModal")).hide();
+        updateBudgetMonthBadge(budgetMonthTxnId, null);
+    } else {
+        const errEl = document.getElementById("budget-month-error");
+        errEl.textContent = "Failed to clear override. Please try again.";
+        errEl.classList.remove("d-none");
+    }
+}
+
+/**
+ * Updates the budget month badge in the date cell without reloading.
+ * @param {number} txnId
+ * @param {string|null} budgetMonth - YYYY-MM string or null to remove badge.
+ */
+function updateBudgetMonthBadge(txnId, budgetMonth) {
+    const row      = document.getElementById(`row-${txnId}`);
+    if (!row) return;
+    const dateCell = row.querySelector("td");
+    const existing = dateCell.querySelector(".badge");
+    if (existing) existing.remove();
+
+    if (budgetMonth) {
+        // Format YYYY-MM to a short label like "Mar 2026"
+        const [year, mo] = budgetMonth.split("-");
+        const label = new Date(parseInt(year), parseInt(mo) - 1, 1)
+            .toLocaleDateString("en-US", { month: "short", year: "numeric" });
+        const badge = document.createElement("span");
+        badge.className = "badge bg-info text-dark";
+        badge.style.fontSize = "0.65rem";
+        badge.title = `Budget attributed to ${label}`;
+        badge.innerHTML = `<i class="bi bi-calendar2-check me-1"></i>${label}`;
+        dateCell.appendChild(document.createElement("br"));
+        dateCell.appendChild(badge);
+    }
+}

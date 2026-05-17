@@ -85,6 +85,44 @@ def assign_category(
     }
 
 
+@router.patch("/api/transactions/{transaction_id}/budget_month")
+def set_budget_month(
+    transaction_id: int,
+    db: Session = Depends(get_db),
+    month: str = None,
+):
+    """
+    Set or clear the budget_month override on a transaction.
+
+    When set, the budget page attributes this transaction to the given month
+    instead of the transaction's real date. Pass month as YYYY-MM string,
+    or omit / pass null to clear the override.
+
+    Returns 400 if the month string is not in YYYY-MM format.
+    Returns 404 if the transaction does not exist.
+    """
+    from datetime import date as date_type
+    from fastapi import Body
+
+    transaction = get_transaction_or_404(db, transaction_id)
+
+    if month:
+        try:
+            year, mo = month.split("-")
+            transaction.budget_month = date_type(int(year), int(mo), 1)
+        except (ValueError, AttributeError):
+            raise HTTPException(status_code=400, detail="month must be YYYY-MM format")
+    else:
+        transaction.budget_month = None
+
+    db.commit()
+    return {
+        "message":      "Budget month updated",
+        "transaction_id": transaction_id,
+        "budget_month": transaction.budget_month.strftime("%Y-%m") if transaction.budget_month else None,
+    }
+
+
 @router.patch("/api/transactions/{transaction_id}")
 def patch_transaction(
     transaction_id: int,

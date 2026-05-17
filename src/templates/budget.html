@@ -170,22 +170,30 @@
                     </tr>
                     {% for row in monthly_rows %}
                     {% set spent_abs = row.spent|abs %}
+                    {% set is_credit = row.spent > 0 %}
                     {% set remaining = row.budgeted - spent_abs %}
-                    {% set pct = (spent_abs / row.budgeted * 100) if row.budgeted > 0 else none %}
+                    {% set pct = (spent_abs / row.budgeted * 100) if (row.budgeted > 0 and not is_credit) else none %}
                     <tr>
                         <td class="fw-semibold {% if row.category == 'Unassigned' %}text-muted fst-italic{% endif %}">
                             {{ row.category }}
                         </td>
                         <td class="text-end text-muted">${{ "%.2f"|format(row.budgeted) }}</td>
-                        <td class="text-end {% if row.spent > 0 %}amount-credit{% else %}amount-debit{% endif %}">${{ "%.2f"|format(spent_abs) }}</td>
-                        <td class="text-end {% if pct is not none and pct > 110 %}budget-over{% elif pct is not none and pct > 100 %}budget-warn{% else %}budget-under{% endif %}">
-                            {% if remaining < 0 %}-${{ "%.2f"|format(remaining|abs) }}
+                        <td class="text-end {% if is_credit %}amount-credit{% else %}amount-debit{% endif %}">${{ "%.2f"|format(spent_abs) }}</td>
+                        <td class="text-end {% if is_credit %}budget-under{% elif pct is not none and pct > 115 %}budget-over{% elif pct is not none and pct > 105 %}budget-warn{% else %}budget-under{% endif %}">
+                            {% if is_credit %}
+                            +${{ "%.2f"|format(row.budgeted + spent_abs) }}
+                            {% elif remaining < 0 %}-${{ "%.2f"|format(remaining|abs) }}
                             {% else %}${{ "%.2f"|format(remaining) }}{% endif %}
                         </td>
                         <td>
-                            {% if pct is not none %}
+                            {% if is_credit %}
                             <div class="progress" style="height:7px;">
-                                <div class="progress-bar {% if pct > 110 %}bg-danger{% elif pct > 100 %}bg-warning{% else %}bg-success{% endif %}"
+                                <div class="progress-bar bg-success" style="width:100%"></div>
+                            </div>
+                            <small class="text-muted fst-italic">credit received</small>
+                            {% elif pct is not none %}
+                            <div class="progress" style="height:7px;">
+                                <div class="progress-bar {% if pct > 115 %}bg-danger{% elif pct > 105 %}bg-warning{% else %}bg-success{% endif %}"
                                     style="width: {{ [pct, 100]|min }}%"></div>
                             </div>
                             <small class="text-muted">{{ "%.0f"|format(pct) }}% used</small>

@@ -94,6 +94,11 @@ class Transaction(Base):
     account_id  = Column(Integer, ForeignKey("accounts.id"), nullable=True)
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
 
+    # Optional budget month override — when set, the budget page uses this
+    # instead of transaction.date for month attribution. The transactions page
+    # always uses the real date. Supports accrual-style reimbursement tracking.
+    budget_month = Column(Date, nullable=True)
+
     # Categorization engine suggestion — populated at import time, cleared on confirm
     suggested_category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
     suggestion_confidence  = Column(Float, nullable=True)

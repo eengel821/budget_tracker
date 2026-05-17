@@ -29,6 +29,11 @@
         body.dark-mode .table { color:#e0e0e0 !important; }
         body.dark-mode .table td, body.dark-mode .table th { border-color:#3a3a55 !important; background-color:#22223b !important; color:#e0e0e0 !important; }
         body.dark-mode .table-hover tbody tr:hover td { background-color:#2e2e4a !important; color:#e0e0e0 !important; }
+        body.dark-mode .table-hover tbody tr:hover td.amount-debit  { color:#f87171 !important; }
+        body.dark-mode .table-hover tbody tr:hover td.amount-credit { color:#4ade80 !important; }
+        body.dark-mode .table-hover tbody tr:hover td.budget-over   { color:#f87171 !important; }
+        body.dark-mode .table-hover tbody tr:hover td.budget-under  { color:#4ade80 !important; }
+        body.dark-mode .table-hover tbody tr:hover td.budget-warn   { color:#fbbf24 !important; }
         body.dark-mode .amount-debit, body.dark-mode .table .amount-debit, body.dark-mode td.amount-debit  { color:#f87171 !important; }
         body.dark-mode .amount-credit, body.dark-mode .table .amount-credit, body.dark-mode td.amount-credit { color:#4ade80 !important; }
         body.dark-mode .budget-over, body.dark-mode .table .budget-over, body.dark-mode td.budget-over   { color:#f87171 !important; }
@@ -86,7 +91,7 @@
 <body>
 
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
         <div class="container-fluid">
             <a class="navbar-brand fw-bold" href="/">
                 <i class="bi bi-wallet2 me-2"></i>Budget Tracker

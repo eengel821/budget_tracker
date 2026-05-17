@@ -45,9 +45,10 @@ def dashboard(
     month: Optional[str] = None,
 ):
     """Render the dashboard with monthly summary stats and charts."""
-    available_months = get_available_months(db)
+    available_months_all = get_available_months(db)
+    available_months = list(reversed(available_months_all[-12:]))
     selected_month   = month or (
-        available_months[-1]["value"] if available_months else get_current_month_str()
+        available_months[0]["value"] if available_months else get_current_month_str()
     )
     year, mo = parse_month(selected_month)
 
@@ -163,7 +164,7 @@ def transactions_page(
     date_to: Optional[str] = None,
 ):
     """Render the transaction list with optional filters."""
-    available_months = get_available_months(db)
+    available_months = list(reversed(get_available_months(db)[-12:]))
     accounts         = db.query(Account).order_by(Account.name).all()
     categories       = db.query(Category).order_by(Category.name).all()
 
@@ -339,9 +340,9 @@ def budget_page(
     month: Optional[str] = None,
 ):
     """Render the budget vs actual comparison page."""
-    available_months = get_available_months(db)
+    available_months = list(reversed(get_available_months(db)[-12:]))
     selected_month   = (
-        (month or available_months[-1]["value"])
+        (month or available_months[0]["value"])
         if available_months else get_current_month_str()
     )
     year, mo = parse_month(selected_month)
