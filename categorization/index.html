@@ -1,0 +1,1519 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Personal budget tracking application documentation">
+      
+      
+        <meta name="author" content="Budget Tracker">
+      
+      
+        <link rel="canonical" href="https://eengel821.github.io/budget_tracker/categorization/">
+      
+      
+        <link rel="prev" href="../categories/">
+      
+      
+        <link rel="next" href="../keywords/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Categorization ML - Budget Tracker</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#transaction-categorization-technical-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Budget Tracker" class="md-header__button md-logo" aria-label="Budget Tracker" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Budget Tracker
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Categorization ML
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/eengel821/budget_tracker" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    eengel821/budget_tracker
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../setup/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Setup & Installation
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../importing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  CSV Import Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../categories/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Categorization Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Categorization ML
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../keywords/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Adding Keywords & Categories
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../budget/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Budget Management
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../backup/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Backup & Restore
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../development/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Development Notes
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Budget Tracker" class="md-nav__button md-logo" aria-label="Budget Tracker" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Budget Tracker
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/eengel821/budget_tracker" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    eengel821/budget_tracker
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Setup & Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../importing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV Import Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../categories/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Categorization Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Categorization ML
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Categorization ML
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#architecture-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-1-keyword-rule-engine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 1 — Keyword Rule Engine
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Stage 1 — Keyword Rule Engine">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-rules-before-ml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why rules before ML?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-2-machine-learning-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 2 — Machine Learning Model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Stage 2 — Machine Learning Model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#problem-framing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Problem framing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-1-tf-idf-converting-text-to-numbers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1 — TF-IDF: Converting Text to Numbers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-2-logistic-regression-learning-the-decision-boundaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2 — Logistic Regression: Learning the Decision Boundaries
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-3-training-learning-the-weights" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3 — Training: Learning the Weights
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#retraining-from-corrections" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Retraining from Corrections
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exclusion-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exclusion Handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#confidence-scores-and-the-review-queue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Confidence Scores and the Review Queue
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model-persistence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model Persistence
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../keywords/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding Keywords & Categories
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../budget/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Budget Management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backup & Restore
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#architecture-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-1-keyword-rule-engine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 1 — Keyword Rule Engine
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Stage 1 — Keyword Rule Engine">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-rules-before-ml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why rules before ML?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-2-machine-learning-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 2 — Machine Learning Model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Stage 2 — Machine Learning Model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#problem-framing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Problem framing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-1-tf-idf-converting-text-to-numbers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1 — TF-IDF: Converting Text to Numbers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-2-logistic-regression-learning-the-decision-boundaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2 — Logistic Regression: Learning the Decision Boundaries
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-3-training-learning-the-weights" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3 — Training: Learning the Weights
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#retraining-from-corrections" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Retraining from Corrections
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exclusion-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exclusion Handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#confidence-scores-and-the-review-queue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Confidence Scores and the Review Queue
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model-persistence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model Persistence
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="transaction-categorization-technical-reference">Transaction Categorization — Technical Reference<a class="headerlink" href="#transaction-categorization-technical-reference" title="Permanent link">&para;</a></h1>
+<p>This document describes the design and mathematics of the budget tracker's automatic
+categorization system. It covers the two-stage architecture (keyword rules + machine
+learning), the algorithms involved, how confidence scores are produced, and how the
+model improves over time as you correct its predictions.</p>
+<hr />
+<h2 id="architecture-overview">Architecture Overview<a class="headerlink" href="#architecture-overview" title="Permanent link">&para;</a></h2>
+<p>Categorization runs in two sequential stages. A transaction only reaches Stage 2 if
+Stage 1 fails to match it.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Imported transaction
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>        │
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>        ▼
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>┌───────────────────────┐
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>│  Stage 1: Keyword     │  ──── match found ────▶  assign category
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>│  Rule Engine          │
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>└───────────────────────┘
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        │ no match
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>        ▼
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>┌───────────────────────┐
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>│  Stage 2: ML Model    │  ──── prediction ─────▶  assign category
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>│  TF-IDF + Logistic    │                           + confidence score
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>│  Regression           │
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>└───────────────────────┘
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>        │ low confidence
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>        ▼
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>   Review queue
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>   (manual verification)
+</code></pre></div>
+<p>Stage 1 handles the easy, known cases with certainty. Stage 2 handles the ambiguous
+remainder and produces a probability estimate alongside its prediction. Both stages
+feed into the review queue, where you verify or correct the result. Every correction
+you make is fed back into the model so it improves over time.</p>
+<hr />
+<h2 id="stage-1-keyword-rule-engine">Stage 1 — Keyword Rule Engine<a class="headerlink" href="#stage-1-keyword-rule-engine" title="Permanent link">&para;</a></h2>
+<h3 id="how-it-works">How it works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h3>
+<p>The keyword engine checks a transaction description against a prioritized list of
+keyword rules. Each rule specifies a keyword string, a target category, and a match
+type (currently <code>contains</code>, meaning the keyword can appear anywhere in the description).</p>
+<p>The critical design change from the original implementation is <strong>specificity ordering</strong>:
+rules are sorted by keyword length (longest first) before matching begins. This ensures
+that "COSTCO GAS" is checked before "COSTCO", so a description like
+"COSTCO GAS #0731" correctly resolves to Gas rather than Groceries.</p>
+<p><strong>Matching order:</strong></p>
+<ol>
+<li>Rules are sorted by keyword length, descending</li>
+<li>Description is normalized (uppercased, store numbers stripped)</li>
+<li>Each rule is checked in order; the first match wins</li>
+<li>Negative keywords are checked — if the description contains an exclusion term for that rule, the match is skipped</li>
+</ol>
+<p><strong>Normalization</strong> strips common noise patterns before matching:</p>
+<ul>
+<li>Store/branch numbers: <code>#0731</code>, <code>#042</code></li>
+<li>Location codes appended after merchant names</li>
+<li>Trailing transaction IDs</li>
+</ul>
+<p>This means <code>COSTCO WHSE #0731</code> and <code>COSTCO WHSE #0042</code> both normalize to <code>COSTCO WHSE</code>
+and match identically.</p>
+<p><strong>Negative keywords</strong> let you express exceptions without an exhaustive list. For example:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;keyword&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;COSTCO&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">&quot;category&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Groceries&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">&quot;match_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;contains&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">&quot;exclude_if_contains&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;GAS&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;TIRE&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;OPTICAL&quot;</span><span class="p">]</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="p">}</span>
+</code></pre></div>
+<p>This matches any Costco transaction <em>except</em> those involving gas, tires, or optical — which
+can have their own more specific rules.</p>
+<h3 id="why-rules-before-ml">Why rules before ML?<a class="headerlink" href="#why-rules-before-ml" title="Permanent link">&para;</a></h3>
+<p>For well-known, consistent merchants, rules are more reliable than a learned model.
+"PUGET SOUND ENERGY" will always be your electric bill. A rule captures this with
+100% certainty and zero training data required. The ML model only needs to cover the
+long tail of merchants the rules don't know about.</p>
+<hr />
+<h2 id="stage-2-machine-learning-model">Stage 2 — Machine Learning Model<a class="headerlink" href="#stage-2-machine-learning-model" title="Permanent link">&para;</a></h2>
+<h3 id="problem-framing">Problem framing<a class="headerlink" href="#problem-framing" title="Permanent link">&para;</a></h3>
+<p>Transaction categorization is a <strong>multiclass text classification</strong> problem. Given a
+transaction description (and optionally amount, date, and account), predict which of
+your <em>N</em> categories it belongs to — including "Exclude" as a valid category for
+auto-excluded transactions like credit card payments.</p>
+<p>We use two techniques in sequence: <strong>TF-IDF</strong> to convert raw text into numbers, and
+<strong>Logistic Regression</strong> to classify those numbers into categories.</p>
+<hr />
+<h3 id="step-1-tf-idf-converting-text-to-numbers">Step 1 — TF-IDF: Converting Text to Numbers<a class="headerlink" href="#step-1-tf-idf-converting-text-to-numbers" title="Permanent link">&para;</a></h3>
+<p>A machine learning model cannot operate on raw strings. We need to convert each
+transaction description into a fixed-length vector of numbers that captures what the
+description is <em>about</em>.</p>
+<p><strong>Term Frequency (TF)</strong></p>
+<p>For a given description <span class="arithmatex"><span class="MathJax_Preview">d</span><script type="math/tex">d</script></span> and a word (term) <span class="arithmatex"><span class="MathJax_Preview">t</span><script type="math/tex">t</script></span>, term frequency counts how often
+<span class="arithmatex"><span class="MathJax_Preview">t</span><script type="math/tex">t</script></span> appears in <span class="arithmatex"><span class="MathJax_Preview">d</span><script type="math/tex">d</script></span> relative to the total number of words:</p>
+<div class="arithmatex">
+<div class="MathJax_Preview">\text{TF}(t, d) = \frac{\text{number of times } t \text{ appears in } d}{\text{total number of terms in } d}</div>
+<script type="math/tex; mode=display">\text{TF}(t, d) = \frac{\text{number of times } t \text{ appears in } d}{\text{total number of terms in } d}</script>
+</div>
+<p>For a transaction description like "WHOLEFDS #0421 SEATTLE WA", each token gets a TF
+score. "WHOLEFDS" appears once out of four tokens, so TF = 0.25.</p>
+<p><strong>Inverse Document Frequency (IDF)</strong></p>
+<p>TF alone is not enough. The word "PAYMENT" appears in many transaction descriptions
+across many categories and tells you almost nothing. The word "WHOLEFDS" appears
+almost exclusively in Groceries transactions and is highly informative.</p>
+<p>IDF penalizes words that appear across many documents and rewards words that are
+specific to few documents. Given a corpus of <span class="arithmatex"><span class="MathJax_Preview">D</span><script type="math/tex">D</script></span> total training transactions:</p>
+<div class="arithmatex">
+<div class="MathJax_Preview">\text{IDF}(t) = \log\left(\frac{D}{|\{d \in D : t \in d\}|}\right)</div>
+<script type="math/tex; mode=display">\text{IDF}(t) = \log\left(\frac{D}{|\{d \in D : t \in d\}|}\right)</script>
+</div>
+<p>where the denominator is the number of training transactions containing term <span class="arithmatex"><span class="MathJax_Preview">t</span><script type="math/tex">t</script></span>.</p>
+<p>If "PAYMENT" appears in 150 of 200 transactions: <span class="arithmatex"><span class="MathJax_Preview">\text{IDF} = \log(200/150) = 0.29</span><script type="math/tex">\text{IDF} = \log(200/150) = 0.29</script></span></p>
+<p>If "WHOLEFDS" appears in 18 of 200 transactions: <span class="arithmatex"><span class="MathJax_Preview">\text{IDF} = \log(200/18) = 2.41</span><script type="math/tex">\text{IDF} = \log(200/18) = 2.41</script></span></p>
+<p><strong>TF-IDF</strong></p>
+<p>The combined score for term <span class="arithmatex"><span class="MathJax_Preview">t</span><script type="math/tex">t</script></span> in document <span class="arithmatex"><span class="MathJax_Preview">d</span><script type="math/tex">d</script></span> is simply the product:</p>
+<div class="arithmatex">
+<div class="MathJax_Preview">\text{TF-IDF}(t, d) = \text{TF}(t, d) \times \text{IDF}(t)</div>
+<script type="math/tex; mode=display">\text{TF-IDF}(t, d) = \text{TF}(t, d) \times \text{IDF}(t)</script>
+</div>
+<p>After computing TF-IDF for all terms in all training documents, each transaction
+becomes a <strong>sparse vector</strong> in a high-dimensional space — one dimension per unique
+term in the training corpus. Most entries are zero (the term doesn't appear in that
+transaction). The non-zero entries capture which terms are present and how informative
+they are.</p>
+<p><strong>The feature matrix</strong></p>
+<p>For <span class="arithmatex"><span class="MathJax_Preview">M</span><script type="math/tex">M</script></span> training transactions and <span class="arithmatex"><span class="MathJax_Preview">V</span><script type="math/tex">V</script></span> unique vocabulary terms, we construct a matrix
+<span class="arithmatex"><span class="MathJax_Preview">\mathbf{X} \in \mathbb{R}^{M \times V}</span><script type="math/tex">\mathbf{X} \in \mathbb{R}^{M \times V}</script></span> where each row is the TF-IDF vector for one
+transaction. In practice <span class="arithmatex"><span class="MathJax_Preview">V</span><script type="math/tex">V</script></span> may be several thousand, but the matrix is sparse so
+storage and computation remain efficient.</p>
+<p><strong>Additional features</strong></p>
+<p>Transaction amount and account can be appended to each row as additional numeric
+features alongside the TF-IDF scores. Amount is log-transformed first
+(<span class="arithmatex"><span class="MathJax_Preview">\log(|\text{amount}|)</span><script type="math/tex">\log(|\text{amount}|)</script></span>) to compress the range — a $3,000 purchase should not
+dominate the $30 purchases by a factor of 100. Month of year (1–12) can be encoded
+as a cyclic feature to capture seasonal patterns.</p>
+<hr />
+<h3 id="step-2-logistic-regression-learning-the-decision-boundaries">Step 2 — Logistic Regression: Learning the Decision Boundaries<a class="headerlink" href="#step-2-logistic-regression-learning-the-decision-boundaries" title="Permanent link">&para;</a></h3>
+<p>With transactions now represented as numeric vectors, logistic regression learns a
+set of weights that map those vectors to category probabilities.</p>
+<p><strong>Binary case (two categories)</strong></p>
+<p>To build intuition, consider the binary case first. Logistic regression models the
+probability that a transaction belongs to category 1 (vs category 0) as:</p>
+<div class="arithmatex">
+<div class="MathJax_Preview">P(y=1 \mid \mathbf{x}) = \sigma(\mathbf{w}^T \mathbf{x} + b)</div>
+<script type="math/tex; mode=display">P(y=1 \mid \mathbf{x}) = \sigma(\mathbf{w}^T \mathbf{x} + b)</script>
+</div>
+<p>where <span class="arithmatex"><span class="MathJax_Preview">\mathbf{x}</span><script type="math/tex">\mathbf{x}</script></span> is the TF-IDF feature vector, <span class="arithmatex"><span class="MathJax_Preview">\mathbf{w}</span><script type="math/tex">\mathbf{w}</script></span> is a learned weight
+vector of the same dimension, <span class="arithmatex"><span class="MathJax_Preview">b</span><script type="math/tex">b</script></span> is a bias term, and <span class="arithmatex"><span class="MathJax_Preview">\sigma</span><script type="math/tex">\sigma</script></span> is the sigmoid function:</p>
+<div class="arithmatex">
+<div class="MathJax_Preview">\sigma(z) = \frac{1}{1 + e^{-z}}</div>
+<script type="math/tex; mode=display">\sigma(z) = \frac{1}{1 + e^{-z}}</script>
+</div>
+<p>The sigmoid maps any real number to <span class="arithmatex"><span class="MathJax_Preview">(0, 1)</span><script type="math/tex">(0, 1)</script></span>, which we interpret as a probability.
+The dot product <span class="arithmatex"><span class="MathJax_Preview">\mathbf{w}^T \mathbf{x}</span><script type="math/tex">\mathbf{w}^T \mathbf{x}</script></span> computes a weighted sum of feature values —
+features with large positive weights push the probability toward 1 (category 1),
+features with large negative weights push it toward 0 (category 0).</p>
+<p><strong>Multiclass extension — Softmax</strong></p>
+<p>With <span class="arithmatex"><span class="MathJax_Preview">N</span><script type="math/tex">N</script></span> categories, we have <span class="arithmatex"><span class="MathJax_Preview">N</span><script type="math/tex">N</script></span> weight vectors <span class="arithmatex"><span class="MathJax_Preview">\mathbf{w}_1, \ldots, \mathbf{w}_N</span><script type="math/tex">\mathbf{w}_1, \ldots, \mathbf{w}_N</script></span>
+(one per category), organized as a weight matrix <span class="arithmatex"><span class="MathJax_Preview">\mathbf{W} \in \mathbb{R}^{N \times V}</span><script type="math/tex">\mathbf{W} \in \mathbb{R}^{N \times V}</script></span>.</p>
+<p>For a transaction with feature vector <span class="arithmatex"><span class="MathJax_Preview">\mathbf{x}</span><script type="math/tex">\mathbf{x}</script></span>, we compute a raw score (called
+a <strong>logit</strong>) for each category:</p>
+<div class="arithmatex">
+<div class="MathJax_Preview">z_k = \mathbf{w}_k^T \mathbf{x} + b_k \quad \text{for } k = 1, \ldots, N</div>
+<script type="math/tex; mode=display">z_k = \mathbf{w}_k^T \mathbf{x} + b_k \quad \text{for } k = 1, \ldots, N</script>
+</div>
+<p>These logits are converted to probabilities using the <strong>softmax</strong> function:</p>
+<div class="arithmatex">
+<div class="MathJax_Preview">P(y = k \mid \mathbf{x}) = \frac{e^{z_k}}{\sum_{j=1}^{N} e^{z_j}}</div>
+<script type="math/tex; mode=display">P(y = k \mid \mathbf{x}) = \frac{e^{z_k}}{\sum_{j=1}^{N} e^{z_j}}</script>
+</div>
+<p>Softmax exponentiates each logit and normalizes by the sum, ensuring all probabilities
+are positive and sum to exactly 1. The category with the highest probability is the
+predicted category. The probability itself is the <strong>confidence score</strong> shown in the
+review queue.</p>
+<p><strong>A concrete example</strong></p>
+<p>Suppose you have 4 categories and the model computes logits:</p>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Logit <span class="arithmatex"><span class="MathJax_Preview">z_k</span><script type="math/tex">z_k</script></span></th>
+<th><span class="arithmatex"><span class="MathJax_Preview">e^{z_k}</span><script type="math/tex">e^{z_k}</script></span></th>
+<th>Probability</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Groceries</td>
+<td>3.2</td>
+<td>24.5</td>
+<td>0.71</td>
+</tr>
+<tr>
+<td>Gas</td>
+<td>1.8</td>
+<td>6.0</td>
+<td>0.17</td>
+</tr>
+<tr>
+<td>Restaurants</td>
+<td>1.1</td>
+<td>3.0</td>
+<td>0.09</td>
+</tr>
+<tr>
+<td>Home Supplies</td>
+<td>0.2</td>
+<td>1.2</td>
+<td>0.03</td>
+</tr>
+<tr>
+<td><strong>Sum</strong></td>
+<td></td>
+<td><strong>34.7</strong></td>
+<td><strong>1.00</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The model predicts Groceries with 71% confidence. This is what gets displayed in the
+review queue alongside the prediction.</p>
+<hr />
+<h3 id="step-3-training-learning-the-weights">Step 3 — Training: Learning the Weights<a class="headerlink" href="#step-3-training-learning-the-weights" title="Permanent link">&para;</a></h3>
+<p><strong>What training does</strong></p>
+<p>Training adjusts the weight matrix <span class="arithmatex"><span class="MathJax_Preview">\mathbf{W}</span><script type="math/tex">\mathbf{W}</script></span> so that the model's predicted
+probabilities align with your labeled transaction data. It does this by minimizing a
+<strong>loss function</strong> — a measure of how wrong the model's predictions are.</p>
+<p><strong>Cross-entropy loss</strong></p>
+<p>The standard loss function for multiclass classification is cross-entropy. For a
+single training transaction with true category <span class="arithmatex"><span class="MathJax_Preview">c</span><script type="math/tex">c</script></span> and predicted probability vector
+<span class="arithmatex"><span class="MathJax_Preview">\mathbf{p}</span><script type="math/tex">\mathbf{p}</script></span>:</p>
+<div class="arithmatex">
+<div class="MathJax_Preview">\mathcal{L} = -\log P(y = c \mid \mathbf{x}) = -\log p_c</div>
+<script type="math/tex; mode=display">\mathcal{L} = -\log P(y = c \mid \mathbf{x}) = -\log p_c</script>
+</div>
+<p>If the true category is Groceries and the model assigns it probability 0.71, the loss
+is <span class="arithmatex"><span class="MathJax_Preview">-\log(0.71) = 0.34</span><script type="math/tex">-\log(0.71) = 0.34</script></span>. If the model had assigned it 0.10, the loss would be
+<span class="arithmatex"><span class="MathJax_Preview">-\log(0.10) = 2.30</span><script type="math/tex">-\log(0.10) = 2.30</script></span> — much higher. The log function heavily penalizes confident
+wrong predictions.</p>
+<p>Over the full training set of <span class="arithmatex"><span class="MathJax_Preview">M</span><script type="math/tex">M</script></span> transactions:</p>
+<div class="arithmatex">
+<div class="MathJax_Preview">\mathcal{L}_{\text{total}} = -\frac{1}{M} \sum_{i=1}^{M} \log P(y = c_i \mid \mathbf{x}_i)</div>
+<script type="math/tex; mode=display">\mathcal{L}_{\text{total}} = -\frac{1}{M} \sum_{i=1}^{M} \log P(y = c_i \mid \mathbf{x}_i)</script>
+</div>
+<p><strong>Optimization</strong></p>
+<p>Minimizing <span class="arithmatex"><span class="MathJax_Preview">\mathcal{L}_{\text{total}}</span><script type="math/tex">\mathcal{L}_{\text{total}}</script></span> over <span class="arithmatex"><span class="MathJax_Preview">\mathbf{W}</span><script type="math/tex">\mathbf{W}</script></span> is a convex optimization
+problem with a unique global minimum — there are no local minima to get stuck in.
+Scikit-learn solves it using L-BFGS or coordinate descent, which are variants of
+gradient descent. The gradient of the loss with respect to each weight tells the
+optimizer which direction to adjust it to reduce loss.</p>
+<p><strong>Regularization</strong></p>
+<p>With small training data (under 200 transactions), a model can <strong>overfit</strong> — memorizing
+training examples instead of learning general patterns. Regularization adds a penalty
+term to the loss that discourages large weight values:</p>
+<div class="arithmatex">
+<div class="MathJax_Preview">\mathcal{L}_{\text{regularized}} = \mathcal{L}_{\text{total}} + \frac{\lambda}{2} \|\mathbf{W}\|^2</div>
+<script type="math/tex; mode=display">\mathcal{L}_{\text{regularized}} = \mathcal{L}_{\text{total}} + \frac{\lambda}{2} \|\mathbf{W}\|^2</script>
+</div>
+<p>The parameter <span class="arithmatex"><span class="MathJax_Preview">\lambda</span><script type="math/tex">\lambda</script></span> (called <code>C = 1/λ</code> in scikit-learn) controls the strength of
+regularization. Higher <span class="arithmatex"><span class="MathJax_Preview">\lambda</span><script type="math/tex">\lambda</script></span> (lower <code>C</code>) produces a simpler model that generalizes
+better to new transactions. This is the most important hyperparameter to tune as your
+dataset grows.</p>
+<hr />
+<h3 id="retraining-from-corrections">Retraining from Corrections<a class="headerlink" href="#retraining-from-corrections" title="Permanent link">&para;</a></h3>
+<p>Every time you correct a categorization in the review queue, the corrected label is
+saved to the database. The model then retrains from scratch on all labeled transactions.</p>
+<p>At your current data scale (under 200 transactions), a full retrain takes
+milliseconds — scikit-learn can solve the optimization problem almost instantly for
+datasets this size. There is no need for incremental or online learning algorithms;
+retrain-from-scratch is simpler, more robust, and produces identical results.</p>
+<p><strong>Why retraining from scratch is correct here</strong></p>
+<p>Incremental learning algorithms (like stochastic gradient descent with partial_fit)
+update weights based only on the new example. This can cause <strong>catastrophic
+forgetting</strong> — the model drifts toward recent corrections and loses accuracy on earlier
+patterns. Retraining from scratch always produces the globally optimal weights given
+all labeled data, and at this scale the computational cost is negligible.</p>
+<p>As your labeled dataset grows beyond ~5,000 transactions, the cost of a full retrain
+starts to matter and incremental approaches become worth considering.</p>
+<hr />
+<h3 id="exclusion-handling">Exclusion Handling<a class="headerlink" href="#exclusion-handling" title="Permanent link">&para;</a></h3>
+<p>Transactions that should be auto-excluded (credit card payments, internal transfers,
+etc.) are handled by treating "Exclude" as a regular category in both the keyword
+engine and the ML model.</p>
+<p>In the keyword engine, exclusion rules live in <code>exclude_keywords.json</code> and are checked
+first, before any category rules. A match immediately marks the transaction as excluded.</p>
+<p>In the ML model, any transaction you have manually excluded becomes a training example
+with label "Exclude". The model learns to predict this label just like any other
+category. In the review queue, predicted-Exclude transactions are flagged with a
+distinct visual indicator so you can confirm before they are hidden from reports.</p>
+<hr />
+<h2 id="confidence-scores-and-the-review-queue">Confidence Scores and the Review Queue<a class="headerlink" href="#confidence-scores-and-the-review-queue" title="Permanent link">&para;</a></h2>
+<p>The ML model always produces a full probability distribution over all categories. The
+review queue uses this in two ways:</p>
+<p><strong>Display:</strong> The predicted category and its probability are shown for each transaction,
+e.g. "Groceries — 84%". This lets you instantly judge how much to trust the prediction
+before verifying.</p>
+<p><strong>Threshold gating:</strong> Transactions below a confidence threshold (e.g. 70%) are
+flagged for mandatory review even if they would otherwise be auto-assigned. This
+threshold is configurable. Transactions above the threshold can optionally be
+auto-assigned without appearing in the review queue at all, though keeping them in the
+queue for spot-checking is recommended while the model is young.</p>
+<p>The confidence threshold trades off two types of errors:</p>
+<ul>
+<li><strong>False positives</strong> (auto-assigned wrong): Lower threshold → more auto-assignments → more errors slip through</li>
+<li><strong>False negatives</strong> (correct prediction sent to review): Higher threshold → fewer auto-assignments → more manual work</li>
+</ul>
+<p>A threshold of 80–85% is a reasonable starting point for a dataset of this size.</p>
+<hr />
+<h2 id="model-persistence">Model Persistence<a class="headerlink" href="#model-persistence" title="Permanent link">&para;</a></h2>
+<p>The trained model is serialized to disk using Python's <code>pickle</code> module (via
+<code>joblib.dump</code> for efficiency with large numpy arrays). The serialized file stores the
+full pipeline: the TF-IDF vectorizer (including its learned vocabulary and IDF weights)
+and the logistic regression weight matrix.</p>
+<p>On server startup, the model is loaded from disk. If no saved model exists (first run,
+or after clearing training data), the system falls back to keyword-only categorization
+until enough labeled transactions exist to train a reliable model. A minimum of
+approximately 3–5 examples per category is needed before training is attempted.</p>
+<hr />
+<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Method</th>
+<th>Handles</th>
+<th>Confidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 — Keywords</td>
+<td>Rule matching with specificity ordering</td>
+<td>Known merchants, recurring bills</td>
+<td>Deterministic (100% or no match)</td>
+</tr>
+<tr>
+<td>2 — ML</td>
+<td>TF-IDF + Logistic Regression</td>
+<td>Unknown merchants, ambiguous descriptions</td>
+<td>Probabilistic (softmax score)</td>
+</tr>
+<tr>
+<td>Fallback</td>
+<td>Manual review queue</td>
+<td>Low-confidence predictions</td>
+<td>N/A</td>
+</tr>
+</tbody>
+</table>
+<p>The system is designed to improve continuously. Every transaction you verify or correct
+in the review queue adds a labeled example, which improves the model's accuracy on
+similar future transactions. Over time, the fraction of transactions requiring manual
+review should decrease as the model learns your specific spending patterns.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.highlight", "search.suggest", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
