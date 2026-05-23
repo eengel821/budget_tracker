@@ -109,17 +109,30 @@ def set_budget_month(
     if month:
         try:
             year, mo = month.split("-")
-            transaction.budget_month = date_type(int(year), int(mo), 1)
+            new_budget_month = date_type(int(year), int(mo), 1)
         except (ValueError, AttributeError):
             raise HTTPException(status_code=400, detail="month must be YYYY-MM format")
     else:
-        transaction.budget_month = None
+        new_budget_month = None
+
+    transaction.budget_month = new_budget_month
+
+    # Propagate budget_month to split children so they also appear in the
+    # correct month on the budget page. Children are the actual rows that
+    # aggregations.py queries — the parent is excluded from budget totals.
+    if transaction.is_split:
+        children = db.query(Transaction).filter(
+            Transaction.parent_id == transaction_id
+        ).all()
+        for child in children:
+            child.budget_month = new_budget_month
 
     db.commit()
     return {
-        "message":      "Budget month updated",
+        "message":        "Budget month updated",
         "transaction_id": transaction_id,
-        "budget_month": transaction.budget_month.strftime("%Y-%m") if transaction.budget_month else None,
+        "budget_month":   transaction.budget_month.strftime("%Y-%m") if transaction.budget_month else None,
+        "children_updated": len(children) if transaction.is_split else 0,
     }
 
 
