@@ -1,89 +1,95 @@
-# Budget Management
+# Budget Page
 
-This guide explains how to set up and manage your monthly budgets and how to interpret the budget vs actual comparison pages.
-
----
-
-## Setting budget amounts
-
-### From the browser
-
-Go to `/budget/manage` or click the **Manage Budgets** button on the Budget page.
-
-Each category is listed with an amount field. Enter your desired monthly budget and click **Save** to update it immediately. Use **Save All** at the bottom to save every category at once.
-
-The total monthly budget is shown in the footer and updates as you make changes.
-
-### From seed_budgets.py
-
-For bulk updates, edit the `BUDGET_AMOUNTS` dictionary in `seed_budgets.py` in the project root:
-
-```python
-BUDGET_AMOUNTS = {
-    "Groceries":   900.00,
-    "Restaurants": 400.00,
-    "Gas":         350.00,
-    ...
-}
-```
-
-Then run the seeder:
-
-```bash
-python seed_budgets.py
-```
-
-This is safe to re-run at any time — it updates existing amounts without creating duplicates.
+The Budget page (`/budget`) compares your actual spending against your monthly budgets. It covers both regular expense categories and the savings section, and handles credits, refunds, and budget month overrides.
 
 ---
 
-## Budget vs Actual page
+## Month selector
 
-The **Budget** page at `/budget` shows how your actual spending compares to your budgeted amounts for the selected month.
+Use the dropdown in the top right to switch between months. The selector shows the most recent 12 months with the current month first. For older months use the date range filter on the Transactions page.
 
-### Summary cards
+---
 
-Three stat cards at the top show:
+## Summary cards
 
-- **Total Budgeted** — sum of all category budgets
-- **Total Spent** — sum of all categorized expenses for the month
-- **Remaining / Over Budget** — the difference, shown in green if under budget or red if over
+Four stat tiles at the top of the page show:
 
-### Category breakdown table
+- **Total Budgeted** — sum of all category monthly budgets
+- **Total Spent** — net expenses for the month
+- **Remaining** — budgeted minus spent
+- **Total Income** — income transactions for the month
+
+---
+
+## Monthly Expenses table
 
 Each category with a budget set is listed with:
 
 | Column | Description |
 |---|---|
-| Budgeted | Your monthly budget for this category |
-| Spent | Actual spending this month |
-| Remaining | Budget minus spent — negative means over budget |
-| Progress | Visual bar showing percentage of budget used |
+| Category | Category name |
+| Budgeted | Monthly budget amount |
+| Spent | Actual spending (red) or credit received (green) |
+| Remaining | Budget minus spent. Positive = under budget, negative = over |
+| Progress | Visual bar and percentage |
 
 ### Progress bar colors
 
-| Color | Meaning |
-|---|---|
-| Green | Under 80% of budget used |
-| Yellow | Between 80% and 100% of budget used |
-| Red | Over budget |
+| Color | Threshold | Meaning |
+|---|---|---|
+| Green | 0 – 105% | On track |
+| Yellow | 105 – 115% | Slightly over, watch this |
+| Red | > 115% | Significantly over budget |
 
-### Selecting a month
+### Credit / refund handling
 
-Use the month selector in the top right to view any month that has transaction data.
-
----
-
-## Category breakdown page
-
-The **Categories** page at `/categories` shows a doughnut chart and table breaking down spending by category for the selected month.
-
-This page is useful for understanding where your money is going at a high level, without comparing against budget targets.
+If a category has a net credit (e.g. a doctor's reimbursement that exceeds charges), the Spent column shows green and the Remaining column shows the full budget plus the credit amount. The progress bar shows full green with "credit received".
 
 ---
 
-## Tips
+## Expenses from Savings table
 
-- Categories with a budget of $0.00 are hidden from the budget comparison page but still appear in the category breakdown
-- Only transactions with a negative amount (expenses) count toward spending totals — income and credits are excluded
-- Uncategorized transactions do not appear in any budget or category totals — categorize them first from the Review queue for accurate reporting
+Categories with no monthly budget (zero-budget categories, including savings jars) appear in a separate section below the main table. These track spending from savings allocations and transfers.
+
+---
+
+## Income table
+
+Income categories (marked `is_income=True`) are shown separately at the bottom. These show earnings against any income targets you've set.
+
+---
+
+## Setting budgets
+
+Click **Manage Budgets** to go to `/budget/manage` where you can:
+
+- Set or update the monthly budget for any category
+- Add new categories
+- Toggle the income and savings flags
+- Rename categories
+
+Changes take effect immediately — no restart needed.
+
+---
+
+## Budget month override
+
+Sometimes a transaction arrives in the wrong month — for example a savings reimbursement that lands in May but covers April expenses. You can attribute any transaction to a different budget month without changing its real date:
+
+1. Go to the **Transactions** page
+2. Find the transaction
+3. Click the **⋯** menu → **Set Budget Month**
+4. Pick the month it should count toward
+5. Click **Save**
+
+A small blue badge appears in the date cell showing the budget attribution (e.g. `Apr 2026`). The transaction still shows its real date everywhere else — only the budget page uses the override.
+
+For split transactions, setting the budget month on the parent automatically propagates to all children.
+
+To clear an override, open the same modal and click **Clear Override**.
+
+---
+
+## Charts
+
+The budget page includes bar charts comparing budgeted vs actual spending across categories, making it easy to spot which categories are on track and which need attention.

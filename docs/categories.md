@@ -1,72 +1,59 @@
-# Categorization Guide
+# Categories Page
 
-Budget Tracker automatically suggests and assigns categories to imported transactions using two strategies. This guide explains how the system works and how to get the most out of it.
-
----
-
-## How auto-categorization works
-
-When you click **Auto-categorize All** on the review page, the categorization engine processes every uncategorized transaction in two steps:
-
-### Step 1 — Keyword matching
-
-The engine checks the transaction description against every entry in `keywords.json`. If the description contains a matching keyword the corresponding category is assigned immediately.
-
-For example if `keywords.json` contains:
-```json
-{ "keyword": "STARBUCKS", "category": "Coffee Shops", "match_type": "contains" }
-```
-
-Then any transaction with "STARBUCKS" anywhere in the description will be assigned to **Coffee Shops**.
-
-Keyword matching is case-insensitive — `starbucks`, `STARBUCKS`, and `Starbucks` all match.
-
-### Step 2 — History matching
-
-If no keyword match is found, the engine looks at previously categorized transactions with the same description. If at least **3 previous transactions** share the same description and **80% or more** of them have the same category, that category is auto-assigned.
-
-This means the system gets smarter over time — the more transactions you manually categorize, the better the auto-assignment becomes for future imports.
+The Categories page (`/categories`) shows spending trends for each category over the past 12 months, with sparkline charts in the table and a detailed chart that expands when you click a row.
 
 ---
 
-## The review queue
-
-Any transaction that couldn't be auto-categorized appears in the **Review** queue at `/review`.
+## Category table
 
 Each row shows:
-- The transaction date, description, account, and amount
-- A category dropdown pre-selected with the best suggestion if one exists (marked with ★)
-- A **✓** button to confirm and save the category
 
-Transactions disappear from the queue as you categorize them. The navbar shows a badge with the count of uncategorized transactions so you always know how many are waiting.
+| Column | Description |
+|---|---|
+| Category | Category name |
+| Budget | Monthly budget amount |
+| Avg Spent | Average monthly spending over the last 12 months |
+| Status badge | On Track / Watch / Over / No Budget |
+| Trend | Sparkline bar chart — green = under budget, yellow = 105–115%, red = over 115% |
 
----
-
-## Overriding a category
-
-Auto-assigned categories aren't permanent — you can change any transaction's category at any time from the **Transactions** page at `/transactions`.
-
-Click the category badge on any row to open an inline dropdown, select the correct category, and it saves immediately.
-
-You can also use the **⋮ actions menu** on each row and select **Change Category**.
+Click any row to expand a detailed chart showing budgeted vs actual spending by month, plus an Over/Under trend line.
 
 ---
 
-## Confidence thresholds
+## Status badges
 
-The history matching uses two configurable thresholds defined at the top of `src/categorizer.py`:
-
-```python
-HISTORY_CONFIDENCE_THRESHOLD = 0.8   # 80% of history must agree
-HISTORY_MIN_MATCHES = 3               # minimum 3 previous transactions needed
-```
-
-If you find the auto-categorization is too aggressive or too conservative you can adjust these values. Lowering `HISTORY_CONFIDENCE_THRESHOLD` will auto-assign more transactions but with less certainty. Raising `HISTORY_MIN_MATCHES` requires more history before auto-assigning.
+| Badge | Meaning |
+|---|---|
+| On Track | Average spending within budget |
+| Watch | Average spending 105–115% of budget |
+| Over | Average spending above 115% of budget |
+| No Budget | No monthly budget set |
 
 ---
 
-## Tips for better auto-categorization
+## Managing categories
 
-- **Categorize consistently** — always use the same category for the same merchant. The history matcher looks for consistency, so mixed categorizations reduce confidence.
-- **Add keywords for frequent merchants** — if you see the same merchant appearing repeatedly in the review queue, add it to `keywords.json` so future imports catch it automatically. See the [Adding Keywords & Categories](keywords.md) guide.
-- **Run auto-categorize after every import** — click **Auto-categorize All** immediately after importing a new CSV to process as many transactions as possible before manual review.
+Category management is done from the **Manage Budgets** page (`/budget/manage`):
+
+- **Add a category** — enter a name and optional budget amount in the Add form at the bottom
+- **Rename** — click the category name inline to edit it
+- **Set budget** — enter an amount and click Save (or Save All to update everything at once)
+- **Income flag** — toggle to mark a category as income (excluded from expense totals)
+- **Savings flag** — toggle to make a category a savings jar (appears on the Savings page)
+
+!!! warning
+    Removing the savings flag from a category that has a non-zero jar balance is blocked. You must rebalance the jar to $0 first.
+
+---
+
+## Category naming tips
+
+- Keep names short — they appear in chart labels, table cells, and dropdowns
+- Use consistent capitalization — names are displayed exactly as entered
+- Avoid special characters
+
+---
+
+## Deleting a category
+
+Categories cannot be deleted from the UI if they have transactions assigned to them. To remove a category, first re-categorize or delete any transactions that use it, then remove it from the database directly or via a script.

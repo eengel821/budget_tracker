@@ -1,18 +1,20 @@
 # Setup & Installation
 
-This guide walks through setting up Budget Tracker on a Windows 11 machine from scratch.
+This guide walks through setting up Budget Tracker on a Windows machine from scratch.
+
+---
 
 ## Prerequisites
 
-### Python
+### Python 3.12+
 
-Download and install Python from [python.org](https://python.org/downloads). During installation:
+Download from [python.org](https://python.org/downloads). During installation:
 
-- Check **"Add python.exe to PATH"** — this is critical, do not skip it
+- Check **"Add python.exe to PATH"** — critical, do not skip
 - Click **"Install Now"**
-- If prompted to "Disable path length limit" at the end, click it
+- If prompted to disable path length limit at the end, click it
 
-Verify the installation worked by opening Command Prompt and running:
+Verify:
 
 ```bash
 python --version
@@ -23,11 +25,7 @@ Both should print version numbers without errors.
 
 ### Git
 
-Download and install Git from [git-scm.com/download/win](https://git-scm.com/download/win). Default options throughout are fine.
-
-### VS Code (recommended)
-
-Download from [code.visualstudio.com](https://code.visualstudio.com). Install the **Python** extension from Microsoft inside VS Code for autocomplete and virtual environment support.
+Download from [git-scm.com/download/win](https://git-scm.com/download/win). Default options throughout are fine.
 
 ---
 
@@ -36,7 +34,7 @@ Download from [code.visualstudio.com](https://code.visualstudio.com). Install th
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/budget-tracker.git
+git clone https://github.com/eengel821/budget_tracker.git
 cd budget_tracker
 ```
 
@@ -47,7 +45,7 @@ python -m venv venv
 venv\Scripts\activate
 ```
 
-You'll know the virtual environment is active when you see `(venv)` at the start of your terminal prompt. You'll need to run `venv\Scripts\activate` each time you open a new terminal session.
+You'll see `(venv)` at the start of your prompt when it's active. You need to run this each time you open a new terminal.
 
 ### 3. Install dependencies
 
@@ -55,53 +53,54 @@ You'll know the virtual environment is active when you see `(venv)` at the start
 pip install -r requirements.txt
 ```
 
-### 4. Create required folders
+This includes `scikit-learn` and `joblib` for the ML categorization engine.
+
+### 4. Initialize the database
 
 ```bash
-mkdir data
-mkdir backups
-type nul > backups\.gitkeep
-type nul > csv_imports\.gitkeep
+alembic upgrade head
 ```
 
-### 5. Initialize the database
+This creates the database at `data/budget.db` and applies all migrations. Run this once on first setup and again any time you pull new changes that include migrations.
+
+### 5. Set up configuration files
+
+Copy the example config files and customize them:
 
 ```bash
-python -c "import sys; sys.path.insert(0, 'src'); from database import init_db; init_db(); print('Done')"
+copy keywords.example.json keywords.json
+copy categories.example.json categories.json
+copy exclude_keywords.example.json exclude_keywords.json
 ```
 
-You should see `Done` and a `budget.db` file will appear in the `data/` folder.
+- **`keywords.json`** — keyword-to-category rules for auto-categorization
+- **`categories.json`** — initial category seed list
+- **`exclude_keywords.json`** — keywords that trigger auto-exclusion (e.g. credit card payments)
 
-### 6. Seed categories and budgets
+### 6. Seed initial categories and budgets
 
 ```bash
-python seed_categories.py
-python seed_budgets.py
+python scripts\seed_categories.py
+python scripts\seed_budgets.py
 ```
 
 ### 7. Start the application
 
+Double-click `start.bat` in the project root, or run manually:
+
 ```bash
+venv\Scripts\activate
 cd src
-uvicorn main:app --reload
+uvicorn main:app --host 127.0.0.1 --port 8000
 ```
 
-Navigate to `http://127.0.0.1:8000` in your browser. You should see the dashboard.
+Navigate to `http://127.0.0.1:8000`. The app automatically creates a backup of your database on each startup.
 
 ---
 
-## Daily workflow
+## Daily use
 
-Every time you want to work with the app:
-
-```bash
-cd budget_tracker
-venv\Scripts\activate
-cd src
-uvicorn main:app --reload
-```
-
-To stop the app press `Ctrl + C` in the terminal.
+Double-click `start.bat` from the project root (or a desktop shortcut to it). It activates the virtual environment, opens Chrome to the app, and starts the server. Press `Ctrl+C` in the terminal window to stop.
 
 ---
 
@@ -109,29 +108,39 @@ To stop the app press `Ctrl + C` in the terminal.
 
 ```
 budget_tracker/
-    src/                        ← application source code
-        main.py                 ← FastAPI app and all routes
-        models.py               ← SQLAlchemy database models
-        database.py             ← database connection and session
-        base.py                 ← SQLAlchemy declarative base
-        categorizer.py          ← auto-categorization engine
-        import_transactions.py  ← CSV importer
-        templates/              ← Jinja2 HTML templates
-        static/                 ← CSS and static assets
-    tests/                      ← pytest test suite
-    docs/                       ← documentation source (Markdown)
-    site/                       ← built documentation HTML (gitignored)
-    data/                       ← SQLite database (gitignored)
-    backups/                    ← database backups (gitignored)
-    csv_imports/                ← drop CSV files here (gitignored)
-    categories.json             ← category list
-    keywords.json               ← keyword-to-category mappings
-    formats.json                ← bank CSV format definitions
-    seed_categories.py          ← category database seeder
-    seed_budgets.py             ← budget amounts seeder
-    backup_db.py                ← database backup utility
-    mkdocs.yml                  ← documentation configuration
-    requirements.txt            ← Python dependencies
+  src/
+    main.py                  ← app entry point, router registration
+    models.py                ← SQLAlchemy ORM models
+    database.py              ← database connection and session
+    categorizer.py           ← auto-categorization engine (keyword + ML)
+    schemas.py               ← Pydantic request models
+    routers/
+      pages.py               ← HTML page routes
+      transactions.py        ← transaction CRUD API
+      categories.py          ← category management API
+      savings.py             ← savings jars API
+      imports.py             ← CSV import and categorize-all
+    services/
+      aggregations.py        ← DB aggregation helpers
+      budget.py              ← budget page data
+    static/
+      style.css
+      js/                    ← per-page JavaScript files
+    templates/               ← Jinja2 HTML templates
+  tests/                     ← pytest test suite (374 tests)
+  scripts/
+    backup_db.py             ← database backup utility
+    seed_categories.py       ← category seeder
+    seed_budgets.py          ← budget amounts seeder
+  alembic/                   ← database migration history
+  docs/                      ← documentation source
+  data/                      ← SQLite database (gitignored)
+  backups/                   ← automatic backups (gitignored)
+  csv_imports/               ← drop CSV files here (gitignored)
+  keywords.json              ← keyword rules (gitignored, use .example.json as template)
+  formats.json               ← bank CSV format definitions
+  requirements.txt
+  start.bat                  ← one-click launcher
 ```
 
 ---
@@ -139,32 +148,23 @@ budget_tracker/
 ## Running tests
 
 ```bash
-cd budget_tracker
 pytest tests/ -v
 ```
 
+Tests use an in-memory SQLite database and never touch real data.
+
 ---
 
-## Updating dependencies
+## Updating after pulling changes
 
-After installing new packages, update `requirements.txt`:
+If a pull includes new migration files:
 
 ```bash
-pip freeze > requirements.txt
+alembic upgrade head
 ```
 
----
+If new dependencies were added:
 
-## Setting up VS Code
-
-After opening the project folder in VS Code:
-
-1. Press `Ctrl + Shift + P` and type **Python: Select Interpreter**
-2. Select the interpreter that shows `venv` in the path
-3. The status bar at the bottom left should show the Python version with `venv`
-
-To run tests inside VS Code:
-
-1. Press `Ctrl + Shift + P` and run **Python: Configure Tests**
-2. Select **pytest** and point it at the `tests/` folder
-3. A Testing panel will appear in the left sidebar
+```bash
+pip install -r requirements.txt
+```

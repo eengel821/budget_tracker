@@ -1,171 +1,197 @@
 # Development Notes
 
-Technical reference for the Budget Tracker codebase. Useful when returning to the project after time away or when extending the app.
+Technical reference for the Budget Tracker codebase.
 
 ---
 
 ## Architecture overview
 
-Budget Tracker is a server-rendered web application. FastAPI handles all routing and serves HTML pages using Jinja2 templates. A small amount of JavaScript handles inline editing and HTMX-style interactions without full page reloads.
+Budget Tracker is a server-rendered web application. FastAPI handles routing and serves HTML via Jinja2 templates. JavaScript handles inline editing, modals, and API calls without full page reloads. There is no frontend build step — Bootstrap, Chart.js, and HTMX are loaded from CDN.
 
 ```
-Browser → FastAPI → SQLAlchemy → SQLite
-              ↓
-          Jinja2 templates → HTML response
+Browser → FastAPI routers → Services → SQLAlchemy → SQLite
+                ↓
+         Jinja2 templates → HTML response
 ```
 
-There is no separate frontend build step — Bootstrap, Chart.js, and HTMX are all loaded from CDN links in `base.html`.
+---
+
+## Project structure
+
+```
+src/
+  main.py               ← app entry point, router registration, lifespan hook
+  models.py             ← SQLAlchemy ORM models
+  database.py           ← engine, session, init_db()
+  base.py               ← SQLAlchemy declarative base
+  categorizer.py        ← categorization engine (keyword + history + ML)
+  schemas.py            ← Pydantic request models
+  deps.py               ← shared template instance and src_path
+  import_transactions.py ← CSV parsing helpers
+  routers/
+    pages.py            ← all HTML page routes
+    transactions.py     ← transaction CRUD API
+    categories.py       ← category management API
+    savings.py          ← savings jars API
+    imports.py          ← CSV import + suggest-all route
+  services/
+    aggregations.py     ← DB aggregation helpers (spending, income, jars)
+    budget.py           ← budget page data construction
+  static/
+    style.css
+    js/                 ← per-page JS (transactions.js, savings.js, etc.)
+  templates/            ← Jinja2 HTML templates
+scripts/
+  backup_db.py          ← database backup utility
+  seed_categories.py    ← category seeder
+  seed_budgets.py       ← budget amounts seeder
+tests/                  ← pytest test suite (374 tests, 93% coverage)
+alembic/                ← migration history
+```
 
 ---
 
 ## Database schema
 
-### accounts
+### Key models
 
-| Column | Type | Description |
+**Transaction** — core model with all budget-related fields:
+
+| Column | Type | Notes |
 |---|---|---|
-| id | Integer | Primary key |
-| name | String | Bank name (e.g. "Chase") |
-| type | String | Account type (e.g. "checking") |
-
-### categories
-
-| Column | Type | Description |
-|---|---|---|
-| id | Integer | Primary key |
-| name | String | Category name (e.g. "Groceries") |
-| monthly_budget | Float | Monthly budget amount in dollars |
-
-### transactions
-
-| Column | Type | Description |
-|---|---|---|
-| id | Integer | Primary key |
-| date | Date | Transaction date |
-| amount | Float | Amount — negative for expenses, positive for income |
-| description | String | Merchant or transaction description |
+| id | Integer | PK |
+| date | Date | Real transaction date |
+| amount | Float | Negative = expense, positive = income/credit |
+| description | String | Merchant/transaction description |
 | notes | String | User-added notes (nullable) |
-| account_id | Integer | Foreign key to accounts |
-| category_id | Integer | Foreign key to categories (nullable = uncategorized) |
+| excluded | Boolean | Hidden from budget totals |
+| is_split | Boolean | Parent of a split transaction |
+| parent_id | Integer | FK to self — set on split children |
+| account_id | Integer | FK to accounts |
+| category_id | Integer | FK to categories — null = uncategorized |
+| budget_month | Date | Budget attribution override (nullable) |
+| suggested_category_id | Integer | Pre-filled suggestion (nullable) |
+| suggestion_confidence | Float | ML confidence 0–1 (nullable) |
+| suggestion_source | String | "keyword", "history", or "ml" (nullable) |
+
+**Category** — budget categories:
+
+| Column | Type | Notes |
+|---|---|---|
+| monthly_budget | Float | 0 = zero-budget / savings jar |
+| is_income | Boolean | Income categories excluded from expense totals |
+| is_savings | Boolean | Appears as savings jar on Savings page |
 
 ---
 
-## Key files
+## Categorization engine
 
-### src/main.py
+`src/categorizer.py` provides two public functions:
 
-All FastAPI routes live here. Organized into three sections:
+**`suggest_category(transaction, db)`** — returns `(category_id, confidence, source)` without writing to the database. Called at import time to pre-fill the review queue.
 
-- **Frontend routes** — return HTML responses via Jinja2 templates
-- **API routes** — return JSON responses, called by JavaScript in the browser
-- **Helper functions** — shared utilities like `get_available_months()`, `get_monthly_spending()`
+**`confirm_category(transaction, category_id, db)`** — assigns the confirmed category, clears suggestion columns, and triggers background ML retraining.
 
-### src/models.py
+Three strategies in order:
 
-SQLAlchemy ORM models for `Account`, `Category`, and `Transaction`. Relationships are defined here so that `transaction.category` and `transaction.account` work as expected in templates.
+1. **Keyword matching** — `match_by_keywords()` with specificity ordering, normalization, and negative keyword support
+2. **History matching** — `match_by_history()` requires ≥3 examples and ≥80% agreement
+3. **ML model** — `CategorizationModel` using TF-IDF + Logistic Regression, serialized to `data/categorizer_model.pkl`
 
-### src/database.py
+The ML model retrains in a background thread after each confirmation so responses stay fast.
 
-Database connection setup. Uses an absolute path derived from `__file__` so the database is always found at `data/budget.db` regardless of where scripts are run from:
+See [Categorization Algorithm](categorization.md) for the full technical writeup.
+
+---
+
+## Budget month override
+
+The `budget_month` column on Transaction enables accrual-style attribution. All four spending aggregation functions in `services/aggregations.py` use a SQLAlchemy CASE expression:
 
 ```python
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "budget.db"
-DATABASE_URL = f"sqlite:///{DB_PATH}"
+effective_date = case(
+    (Transaction.budget_month != None, Transaction.budget_month),
+    else_=Transaction.date,
+)
 ```
 
-### src/categorizer.py
-
-Two-strategy auto-categorization engine:
-
-1. `match_by_keywords()` — checks description against `keywords.json`
-2. `match_by_history()` — analyzes previous categorizations for the same description
-
-Configurable thresholds:
-```python
-HISTORY_CONFIDENCE_THRESHOLD = 0.8  # 80% of history must agree
-HISTORY_MIN_MATCHES = 3             # minimum 3 previous transactions needed
-```
-
-### src/import_transactions.py
-
-CSV importer supporting Chase, Capital One, BECU, and Discover. Bank format definitions are read from `formats.json`. Key functions:
-
-- `parse_amount()` — normalizes amounts to negative (expense) or positive (income)
-- `parse_date()` — handles multiple date formats across banks
-- `is_duplicate()` — checks for existing transactions by date + amount + description
-- `import_csv()` — main orchestration with duplicate handling
+This means `COALESCE(budget_month, date)` is used for all month filtering on the budget page. The transactions page always uses the real date.
 
 ---
 
-## Adding a new page
+## Sign conventions
 
-1. Create a new template in `src/templates/` extending `base.html`
-2. Add a route function in `src/main.py` decorated with `@app.get("/your-path", response_class=HTMLResponse)`
-3. Add a nav link in `src/templates/base.html`
+- Expense amounts are **negative** (debits)
+- Income amounts are **positive** (credits)
+- `get_total_expenses()` returns a **negative** float
+- Budget page uses `abs()` for display; template context carries signed values
+- Split children are `excluded=True`, `parent_id` set; parents are `is_split=True`
 
 ---
 
-## Adding a new API endpoint
+## Migrations
 
-Add a new function in `src/main.py` with the appropriate decorator:
+Database schema changes use Alembic. All migrations use the SQLite-safe pattern — no FK constraints in `op.add_column()`, with defensive `PRAGMA table_info` checks:
 
 ```python
-@app.get("/api/your-endpoint")
-def your_endpoint(db: Session = Depends(get_db)):
-    ...
-    return {"key": "value"}
+def upgrade() -> None:
+    conn = op.get_bind()
+    existing = [row[1] for row in conn.execute(sa.text("PRAGMA table_info(transactions)"))]
+    if "new_column" not in existing:
+        op.add_column("transactions", sa.Column("new_column", sa.String(), nullable=True))
 ```
 
-All API endpoints are documented automatically at `/docs` (FastAPI's Swagger UI).
+To apply migrations: `alembic upgrade head`
+To check current version: `alembic current`
 
 ---
 
-## Running the test suite
+## Testing
 
 ```bash
-cd budget_tracker
 pytest tests/ -v
+pytest tests/ --cov=src --cov-report=term-missing
 ```
 
-Tests use an in-memory SQLite database so they never touch real data. Test fixtures are defined in `tests/conftest.py`.
+Tests use `StaticPool` in-memory SQLite. The `conftest.py` provides `db` (raw session) and `client` (FastAPI TestClient) fixtures. Route tests that do delete+insert use `db.expire_all()` after mutations.
 
-### Test files
+Key fixture notes:
 
-| File | What it tests |
-|---|---|
-| `test_formats.py` | Validates `formats.json` structure |
-| `test_parsing.py` | Amount and date parsing for all bank formats |
-| `test_duplicate.py` | Duplicate detection logic |
-| `test_import.py` | End-to-end CSV imports for all banks |
-| `test_categorizer.py` | Keyword and history matching |
+- Mock `routers.imports.load_exclude_keywords` (not `main.load_exclude_keywords`)
+- `categorizer.load_keywords` is mocked via `patch("categorizer.load_keywords", return_value=...)`
 
 ---
 
 ## CI/CD
 
-GitHub Actions runs the test suite automatically on every push to non-main branches and on pull requests to main. Configuration is in `.github/workflows/tests.yml`.
+- **GitHub Actions** — runs tests on every push and PR (`.github/workflows/tests.yml`)
+- **GitLab CI** — lint + test with 90% coverage gate (`.gitlab-ci.yml`)
+- **GitHub Pages** — MkDocs docs deployed via `.github/workflows/docs.yml`
 
 ---
 
-## Known limitations
+## Adding a new page
 
-- **No user authentication** — the app is designed for single-user local use only. Do not expose it to the internet without adding authentication.
-- **Split transactions** — planned but not yet implemented. The actions menu shows it as disabled.
-- **No pagination** — the transactions page loads all matching transactions at once. This may become slow with very large datasets.
-- **SQLite only** — the app uses SQLite which is appropriate for local single-user use. Migrating to PostgreSQL would require updating `DATABASE_URL` in `database.py` and installing `psycopg2`.
+1. Create a template in `src/templates/` extending `base.html`
+2. Add a route in `src/routers/pages.py`
+3. Add a nav link in `src/templates/base.html`
+4. Create `src/static/js/yourpage.js` for any page-specific JS
+5. Add a docs page in `docs/` and update `mkdocs.yml`
 
 ---
 
-## Dependency versions
-
-Key packages and their roles:
+## Key dependencies
 
 | Package | Purpose |
 |---|---|
 | `fastapi` | Web framework and API |
 | `uvicorn` | ASGI server |
 | `sqlalchemy` | ORM and database abstraction |
+| `alembic` | Database migrations |
 | `jinja2` | HTML templating |
-| `python-multipart` | Form data parsing |
+| `scikit-learn` | ML categorization model |
+| `joblib` | Model serialization |
+| `scipy` | Sparse matrix support for TF-IDF |
+| `python-multipart` | Form/file upload parsing |
 | `pydantic` | Request/response validation |
-| `pytest` | Test runner |
+| `pytest` / `pytest-cov` | Test runner and coverage |

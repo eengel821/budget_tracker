@@ -1,12 +1,15 @@
 site_name: Budget Tracker
-site_description: Personal budget tracking application documentation
-site_author: Budget Tracker
+site_description: Personal finance tracking app — documentation
 site_url: https://eengel821.github.io/budget_tracker/
-repo_url: https://github.com/eengel821/budget_tracker
-repo_name: eengel821/budget_tracker
 
 theme:
   name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - toc.integrate
+    - search.suggest
   palette:
     - scheme: default
       primary: indigo
@@ -20,38 +23,37 @@ theme:
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
-  features:
-    - navigation.tabs
-    - navigation.sections
-    - navigation.top
-    - search.highlight
-    - search.suggest
-    - content.code.copy
 
 nav:
   - Home: index.md
-  - Setup & Installation: setup.md
-  - CSV Import Guide: importing.md
-  - Categorization Guide: categories.md
-  - Categorization ML: categorization.md
-  - Adding Keywords & Categories: keywords.md
-  - Budget Management: budget.md
-  - Backup & Restore: backup.md
-  - Development Notes: development.md
-
-plugins:
-  - search
+  - Getting Started:
+    - Setup & Installation: setup.md
+    - Importing Transactions: importing.md
+  - Using the App:
+    - Review Queue: review.md
+    - Budget Page: budget.md
+    - Savings: savings.md
+    - Transactions: transactions.md
+    - Categories: categories.md
+  - Configuration:
+    - Keywords & Categories: keywords.md
+    - Backup & Restore: backup.md
+  - Reference:
+    - Categorization Algorithm: categorization.md
+    - Development Notes: development.md
 
 markdown_extensions:
   - admonition
-  - pymdownx.arithmatex
   - pymdownx.details
-  - pymdownx.highlight:
-      anchor_linenums: true
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
-  - pymdownx.inlinehilite
+  - pymdownx.arithmatex:
+      generic: true
   - tables
   - toc:
       permalink: true
+
+extra_javascript:
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js

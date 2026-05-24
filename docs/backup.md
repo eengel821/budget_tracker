@@ -1,119 +1,102 @@
 # Backup & Restore
 
-Budget Tracker includes a backup utility that protects your transaction data. This guide covers how backups work, how to create them manually, and how to restore from a backup if something goes wrong.
+Budget Tracker automatically backs up your database on every startup. This guide covers how backups work, how to manage them, and how to restore if something goes wrong.
 
 ---
 
-## How backups work
+## Automatic backups
 
-Backups are created automatically in two situations:
-
-1. **Every time the app starts** — a backup is created when uvicorn starts up, but only if no backup has been made in the last 60 seconds (to prevent multiple backups during uvicorn's reload process)
-2. **Every time you run the CSV importer** — a backup is created before any new transactions are imported
-
-Backups are stored as timestamped `.db` files in the `backups/` folder:
+A backup is created every time the app starts — when you double-click `start.bat` or run uvicorn manually. Backups are stored as timestamped `.db` files in the `backups/` folder:
 
 ```
 backups/
-    budget_20260201_083045.db
-    budget_20260202_091230.db
-    budget_20260301_120000.db
+    budget_20260401_083045.db
+    budget_20260402_091230.db
+    budget_20260501_120000.db
 ```
 
-The most recent **30 backups** are kept automatically. Older backups are pruned when new ones are created.
+The most recent **30 backups** are kept. Older ones are pruned automatically when new ones are created.
 
 ---
 
-## Creating a manual backup
+## Manual backup
 
-Run this from the project root at any time:
+Run from the project root at any time:
 
 ```bash
-python backup_db.py
+python scripts\backup_db.py
 ```
 
-Output:
-```
-Backup created: budget_20260301_143022.db
-Size: 524,288 bytes
-
-Total backups: 12 / 30
-```
-
-This is recommended before any significant operation such as bulk re-categorization or making database schema changes.
+Recommended before any major operation — bulk re-categorization, schema changes, or experimenting with data.
 
 ---
 
-## Listing existing backups
+## Listing backups
 
 ```bash
-python backup_db.py --list
+python scripts\backup_db.py --list
 ```
 
 Output:
 ```
 Existing backups in C:\...\budget_tracker\backups:
 
-   1. budget_20260301_143022.db  |     524,288 bytes  |  2026-03-01 14:30:22
-   2. budget_20260228_091500.db  |     512,000 bytes  |  2026-02-28 09:15:00
-   3. budget_20260227_083012.db  |     498,688 bytes  |  2026-02-27 08:30:12
-
-Total: 3 backups
+   1. budget_20260501_120000.db  |     98,304 bytes  |  2026-05-01 12:00:00
+   2. budget_20260430_083000.db  |     95,232 bytes  |  2026-04-30 08:30:00
+   ...
 ```
-
-Backups are listed newest first.
 
 ---
 
-## Restoring from a backup
-
-If something goes wrong — accidental deletion, bad import, or corrupt data — you can restore from any backup:
+## Restoring a backup
 
 ```bash
-python backup_db.py --restore budget_20260228_091500.db
+python scripts\backup_db.py --restore budget_20260430_083000.db
 ```
 
 Output:
 ```
-Safety backup created: budget_20260301_150000_pre_restore.db
-Restored: budget_20260228_091500.db → C:\...\budget_tracker\data\budget.db
+Safety backup created: budget_20260501_130000_pre_restore.db
+Restored: budget_20260430_083000.db → C:\...\budget_tracker\data\budget.db
 Restart uvicorn to use the restored database.
 ```
 
 !!! warning
-    Always restart uvicorn after restoring a backup. The running app will still have the old database loaded in memory until it is restarted.
+    Always restart the app after restoring. The running server still has the old database loaded in memory until it restarts.
 
-### Safety backup before restore
+### Safety backup
 
-Every restore operation automatically creates a safety backup of your current database before overwriting it. This means you can always undo a restore if needed — just restore the `_pre_restore.db` file.
+Every restore automatically creates a safety backup of the current database first — named with `_pre_restore` in the filename. This means you can always undo a restore by restoring that file.
 
 ---
 
-## Backup configuration
+## Configuration
 
-Two settings at the top of `backup_db.py` can be adjusted:
+At the top of `scripts/backup_db.py`:
 
 ```python
-MAX_BACKUPS = 30   # number of backups to keep
+MAX_BACKUPS = 30   # how many backups to keep
 ```
 
-Increase `MAX_BACKUPS` if you want to keep more history. Each backup is roughly the same size as your database file.
+Increase this if you want more history. Each backup is roughly the same size as your database file (typically 100–500 KB).
 
 ---
 
 ## What is not backed up
 
-The backup only covers `budget.db` — the database file containing your transactions, categories, and budget amounts. It does not back up:
+The backup only covers `data/budget.db`. It does not cover:
 
-- `keywords.json` — commit this to Git to keep it safe
-- `categories.json` — commit this to Git to keep it safe
-- `formats.json` — commit this to Git to keep it safe
-- CSV import files in `csv_imports/` — keep originals from your bank
+- `keywords.json` — track this in Git
+- `categories.json` — track this in Git  
+- `exclude_keywords.json` — track this in Git
+- `formats.json` — already committed to Git
+- CSV files in `csv_imports/` — keep originals from your bank
 
 ---
 
-## Recommended backup habits
+## Recommended habits
 
-- Run `python backup_db.py` before any major operation
-- Commit your JSON configuration files (`keywords.json`, `categories.json`, `formats.json`) to Git regularly
-- Periodically copy the `backups/` folder to an external drive or cloud storage for offsite protection
+- The automatic startup backup covers day-to-day protection
+- Run a manual backup before any large import or bulk edit
+- Periodically copy the `backups/` folder to an external drive or cloud storage
+- Commit your JSON config files to Git after making keyword or category changes
