@@ -161,7 +161,7 @@ async def import_transactions_endpoint(
         account  = _get_or_create_account(db, bank, "imported")
         imported = skipped = auto_excluded = duplicates_skipped = 0
 
-        with open(tmp_path, newline="", encoding="utf-8-sig") as csvfile:
+        with open(tmp_path, newline="", encoding="utf-8-sig", errors="replace") as csvfile:
             reader = csvlib.DictReader(csvfile)
             reader.fieldnames = [f.strip().strip('"') for f in reader.fieldnames]
 

@@ -421,22 +421,30 @@ def retrain_model(db: Session) -> None:
     """
     Retrain the ML model from scratch on all confirmed transactions.
 
-    Runs in a background thread so the HTTP response returns immediately
-    and the user is not blocked waiting for training to complete. At the
-    current data scale training takes well under a second, but even so
-    there is no reason to make the user wait for it.
+    Runs in a background thread so the HTTP response returns immediately.
+    A fresh database session is created inside the thread — the request
+    session (db) will be closed by FastAPI before the thread finishes,
+    so passing it in would cause an InvalidRequestError.
 
     Args:
-        db: Active SQLAlchemy session.
+        db: Unused directly — kept for call-site compatibility.
     """
+    from database import SessionLocal
+
     def _train():
         global _model
-        _model = CategorizationModel()
-        success = _model.train(db)
-        if not success:
-            logger.info("Model retrain skipped — insufficient labeled data.")
-        else:
-            logger.info("Model retrain complete (background).")
+        thread_db = SessionLocal()
+        try:
+            _model = CategorizationModel()
+            success = _model.train(thread_db)
+            if not success:
+                logger.info("Model retrain skipped — insufficient labeled data.")
+            else:
+                logger.info("Model retrain complete (background).")
+        except Exception as e:
+            logger.warning("Model retrain failed: %s", e)
+        finally:
+            thread_db.close()
 
     thread = threading.Thread(target=_train, daemon=True)
     thread.start()

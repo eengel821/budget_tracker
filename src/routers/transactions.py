@@ -289,6 +289,7 @@ def split_transaction(
             is_split=False,
             parent_id=parent.id,
             account_id=parent.account_id,
+            budget_month=parent.budget_month,
             category_id=item.category_id,
         ))
 
