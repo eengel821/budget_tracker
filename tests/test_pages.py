@@ -155,6 +155,9 @@ class TestReviewPage:
         """Review page renders without error when uncategorized transactions exist."""
         resp = client.get("/review")
         assert resp.status_code == 200
+        assert 'id="review-progress"' in resp.text
+        assert 'data-type="date"' in resp.text
+        assert 'data-type="num"' in resp.text
 
     def test_review_empty_queue_returns_200(self, client, db):
         """Review page renders without error when queue is empty."""

@@ -20,12 +20,54 @@
 
 /** @type {HTMLInputElement|null} Last clicked checkbox, for shift-range selection. */
 let lastChecked = null;
+let bulkActionRunning = false;
 
 // ── Initialization ────────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", () => {
     updateSelection();
+    document.querySelectorAll(".sortable").forEach(header => {
+        const sort = () => {
+            const column = parseInt(header.dataset.col, 10);
+            const direction = header.classList.contains("asc") ? "desc" : "asc";
+            document.querySelectorAll(".sortable").forEach(item => {
+                item.classList.remove("asc", "desc");
+                item.setAttribute("aria-sort", "none");
+            });
+            header.classList.add(direction);
+            header.setAttribute("aria-sort", direction === "asc" ? "ascending" : "descending");
+            sortReviewRows(column, header.dataset.type, direction);
+        };
+        header.addEventListener("click", sort);
+        header.addEventListener("keydown", event => {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                sort();
+            }
+        });
+    });
 });
+
+function sortReviewRows(column, type, direction) {
+    const tbody = document.querySelector(".review-row")?.parentElement;
+    if (!tbody) return;
+
+    const rows = [...tbody.querySelectorAll(".review-row")];
+    rows.sort((left, right) => {
+        const value = row => {
+            const cell = row.querySelectorAll("td")[column];
+            if (column === 6) return cell.querySelector("select")?.selectedOptions[0]?.textContent.trim() ?? "";
+            return cell.dataset.sortValue ?? cell.textContent.trim();
+        };
+        const leftValue = value(left);
+        const rightValue = value(right);
+        const comparison = type === "num"
+            ? Number(leftValue) - Number(rightValue)
+            : leftValue.localeCompare(rightValue, undefined, { numeric: true, sensitivity: "base" });
+        return direction === "asc" ? comparison : -comparison;
+    });
+    rows.forEach(row => tbody.appendChild(row));
+}
 
 // ── Checkbox handling ─────────────────────────────────────────────────────────
 
@@ -206,8 +248,8 @@ async function confirmChecked() {
         return;
     }
 
-    const ids     = [];
-    let skipped   = 0;
+    const updates = [];
+    let skipped = 0;
 
     for (const cb of checked) {
         const id         = parseInt(cb.dataset.id);
@@ -216,19 +258,15 @@ async function confirmChecked() {
 
         if (!categoryId) { skipped++; continue; }
 
-        const response = await fetch(`/transactions/${id}/category`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ category_id: parseInt(categoryId) })
-        });
-
-        if (response.ok) { ids.push(id); }
+        updates.push({ id, categoryId: parseInt(categoryId, 10) });
     }
 
-    if (ids.length) removeRows(ids);
+    const result = await processBulkUpdates(updates, "Confirming");
+    if (result?.succeeded.length) removeRows(result.succeeded);
     if (skipped > 0) {
         alert(`${skipped} row${skipped !== 1 ? "s" : ""} skipped — no category selected.`);
     }
+    if (result?.failed.length) alert(`${result.failed.length} transaction(s) failed to confirm.`);
 }
 
 /**
@@ -245,40 +283,88 @@ async function applyBulk() {
         return;
     }
 
-    const results = await Promise.all(
-        ids.map(id => fetch(`/transactions/${id}/category`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ category_id: parseInt(categoryId) })
-        }))
+    const result = await processBulkUpdates(
+        ids.map(id => ({ id, categoryId: parseInt(categoryId, 10) })),
+        "Updating"
     );
 
-    const succeeded = results.filter(r => r.ok).length;
-    const failed    = results.length - succeeded;
-
-    if (succeeded > 0) removeRows(ids.slice(0, succeeded));
-    if (failed > 0) alert(`${failed} transaction(s) failed to update. Please try again.`);
+    if (result?.succeeded.length) removeRows(result.succeeded);
+    if (result?.failed.length) alert(`${result.failed.length} transaction(s) failed to update. Please try again.`);
 
     select.value = "";
 }
 
 /**
- * Excludes all checked transactions in parallel.
+ * Excludes all checked transactions sequentially to avoid exhausting DB connections.
  */
 async function excludeBulk() {
     const ids = getSelectedIds();
     if (!ids.length) return;
     if (!confirm(`Exclude ${ids.length} transaction${ids.length !== 1 ? "s" : ""} from reports?\n\nYou can restore them using "Show Excluded" on the transactions page.`)) return;
 
-    const results = await Promise.all(
-        ids.map(id => fetch(`/api/transactions/${id}/exclude`, { method: "PUT" }))
-    );
+    const result = await processBulkUpdates(ids.map(id => ({ id })), "Excluding", true);
+    if (result?.succeeded.length) removeRows(result.succeeded);
+    if (result?.failed.length) alert(`${result.failed.length} transaction(s) failed to exclude. Please try again.`);
+}
 
-    const succeeded = results.filter(r => r.ok).length;
-    const failed    = results.length - succeeded;
+async function processBulkUpdates(updates, label, exclude = false) {
+    if (bulkActionRunning || !updates.length) return null;
 
-    if (succeeded > 0) removeRows(ids.slice(0, succeeded));
-    if (failed > 0) alert(`${failed} transaction(s) failed to exclude. Please try again.`);
+    bulkActionRunning = true;
+    const controls = [...document.querySelectorAll("#bulk-bar button, #bulk-category, #confirm-preselected, .row-check, #select-all")];
+    controls.forEach(control => { control.disabled = true; });
+    const status = document.getElementById("review-progress");
+    const bar = document.getElementById("review-progress-bar");
+    const progress = status.querySelector(".progress");
+    status.className = "alert alert-info py-2 mb-2";
+    bar.className = "progress-bar progress-bar-striped progress-bar-animated";
+    document.getElementById("review-progress-label").textContent = `${label} transactions...`;
+    document.getElementById("review-progress-count").textContent = `0 of ${updates.length}`;
+    bar.style.width = "0%";
+    progress.setAttribute("aria-valuenow", "0");
+
+    const succeeded = [];
+    const failed = [];
+    try {
+        for (let index = 0; index < updates.length; index++) {
+            const update = updates[index];
+            const url = exclude
+                ? `/api/transactions/${update.id}/exclude`
+                : `/transactions/${update.id}/category`;
+            const options = exclude
+                ? { method: "PUT" }
+                : {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ category_id: update.categoryId })
+                };
+
+            try {
+                const response = await fetch(url, options);
+                (response.ok ? succeeded : failed).push(update.id);
+            } catch {
+                failed.push(update.id);
+            }
+
+            const completed = index + 1;
+            const percent = Math.round(completed / updates.length * 100);
+            document.getElementById("review-progress-label").textContent = `${label} transactions...`;
+            document.getElementById("review-progress-count").textContent = `${completed} of ${updates.length}`;
+            bar.style.width = `${percent}%`;
+            progress.setAttribute("aria-valuenow", String(percent));
+        }
+
+        status.className = `alert ${failed.length ? "alert-warning" : "alert-success"} py-2 mb-2`;
+        document.getElementById("review-progress-label").textContent = failed.length
+            ? `Finished with ${failed.length} failure${failed.length === 1 ? "" : "s"}.`
+            : `Finished: ${succeeded.length} transaction${succeeded.length === 1 ? "" : "s"} processed.`;
+        bar.className = "progress-bar";
+    } finally {
+        bulkActionRunning = false;
+        controls.forEach(control => { control.disabled = false; });
+    }
+
+    return { succeeded, failed };
 }
 
 /**

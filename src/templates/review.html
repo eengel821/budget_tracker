@@ -13,7 +13,7 @@
     </div>
     {% if transactions %}
     <div class="d-flex gap-2">
-        <button class="btn btn-outline-primary btn-sm" onclick="confirmAllPreselected()">
+        <button id="confirm-preselected" class="btn btn-outline-primary btn-sm" onclick="confirmAllPreselected()">
             <i class="bi bi-check-all me-1"></i>Confirm All Pre-selected
         </button>
         <form method="post" action="/categorize-all">
@@ -45,6 +45,15 @@
 
 {% if transactions %}
 <!-- Inline bulk action bar — appears above table when rows are selected -->
+<div id="review-progress" class="alert alert-info d-none py-2 mb-2" role="status" aria-live="polite">
+    <div class="d-flex justify-content-between small mb-1">
+        <span id="review-progress-label">Processing transactions...</span>
+        <span id="review-progress-count">0 of 0</span>
+    </div>
+    <div class="progress" style="height:6px;" role="progressbar" aria-label="Transactions processed" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div id="review-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%"></div>
+    </div>
+</div>
 <div id="bulk-bar" class="bulk-bar-inline d-none mb-2">
     <div class="d-flex align-items-center gap-2 flex-wrap">
         <span class="fw-semibold text-muted small"><span id="selected-count">0</span> selected</span>
@@ -82,12 +91,12 @@
                             <input type="checkbox" id="select-all" class="form-check-input"
                                 onchange="toggleAll(this)">
                         </th>
-                        <th>Date</th>
-                        <th>Description</th>
-                        <th>Account</th>
-                        <th class="text-end">Amount</th>
-                        <th style="width:90px;">Source</th>
-                        <th>Category</th>
+                        <th class="sortable" tabindex="0" role="button" data-col="1" data-type="date" aria-sort="none">Date <i class="bi bi-arrow-down-up sort-icon"></i></th>
+                        <th class="sortable" tabindex="0" role="button" data-col="2" data-type="str" aria-sort="none">Description <i class="bi bi-arrow-down-up sort-icon"></i></th>
+                        <th class="sortable" tabindex="0" role="button" data-col="3" data-type="str" aria-sort="none">Account <i class="bi bi-arrow-down-up sort-icon"></i></th>
+                        <th class="sortable text-end" tabindex="0" role="button" data-col="4" data-type="num" aria-sort="none">Amount <i class="bi bi-arrow-down-up sort-icon"></i></th>
+                        <th class="sortable" style="width:90px;" tabindex="0" role="button" data-col="5" data-type="str" aria-sort="none">Source <i class="bi bi-arrow-down-up sort-icon"></i></th>
+                        <th class="sortable" tabindex="0" role="button" data-col="6" data-type="str" aria-sort="none">Category <i class="bi bi-arrow-down-up sort-icon"></i></th>
                         <th style="width:100px;"></th>
                     </tr>
                 </thead>
@@ -107,10 +116,10 @@
                                 {% if pretick %}checked{% endif %}
                                 onclick="handleCheckboxClick(event, this)">
                         </td>
-                        <td class="text-muted small align-middle">{{ t.date }}</td>
-                        <td class="fw-semibold align-middle">{{ t.description }}</td>
-                        <td class="text-muted small align-middle">{{ t.account.name if t.account else "—" }}</td>
-                        <td class="text-end align-middle {% if t.amount < 0 %}amount-debit{% else %}amount-credit{% endif %}">
+                        <td class="text-muted small align-middle" data-sort-value="{{ t.date }}">{{ t.date }}</td>
+                        <td class="fw-semibold align-middle" data-sort-value="{{ t.description }}">{{ t.description }}</td>
+                        <td class="text-muted small align-middle" data-sort-value="{{ t.account.name if t.account else '' }}">{{ t.account.name if t.account else "—" }}</td>
+                        <td class="text-end align-middle {% if t.amount < 0 %}amount-debit{% else %}amount-credit{% endif %}" data-sort-value="{{ t.amount }}">
                             ${{ "%.2f"|format(t.amount|abs) }}
                         </td>
 

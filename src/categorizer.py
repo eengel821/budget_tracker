@@ -415,6 +415,9 @@ class CategorizationModel:
 
 # Module-level model instance — loaded/trained once per process lifetime.
 _model = CategorizationModel()
+_retrain_lock = threading.Lock()
+_retrain_running = False
+_retrain_requested = False
 
 
 def retrain_model(db: Session) -> None:
@@ -429,22 +432,41 @@ def retrain_model(db: Session) -> None:
     Args:
         db: Unused directly — kept for call-site compatibility.
     """
+    global _retrain_running, _retrain_requested
+
     from database import SessionLocal
 
+    with _retrain_lock:
+        _retrain_requested = True
+        if _retrain_running:
+            return
+        _retrain_running = True
+
     def _train():
-        global _model
-        thread_db = SessionLocal()
-        try:
-            _model = CategorizationModel()
-            success = _model.train(thread_db)
-            if not success:
-                logger.info("Model retrain skipped — insufficient labeled data.")
-            else:
-                logger.info("Model retrain complete (background).")
-        except Exception as e:
-            logger.warning("Model retrain failed: %s", e)
-        finally:
-            thread_db.close()
+        global _model, _retrain_running, _retrain_requested
+
+        while True:
+            with _retrain_lock:
+                _retrain_requested = False
+
+            thread_db = SessionLocal()
+            try:
+                _model = CategorizationModel()
+                success = _model.train(thread_db)
+                if not success:
+                    logger.info("Model retrain skipped — insufficient labeled data.")
+                else:
+                    logger.info("Model retrain complete (background).")
+            except Exception as e:
+                logger.warning("Model retrain failed: %s", e)
+            finally:
+                thread_db.close()
+
+            with _retrain_lock:
+                if _retrain_requested:
+                    continue
+                _retrain_running = False
+                return
 
     thread = threading.Thread(target=_train, daemon=True)
     thread.start()
