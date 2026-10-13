@@ -1,9 +1,8 @@
 """
 test_categorizer.py - Tests for the categorization engine in categorizer.py
 
-Covers keyword matching, history matching, confidence thresholds, the combined
-categorize_transaction() function, and the bulk categorize_all_uncategorized()
-function.
+Covers keyword matching, history matching, category suggestions, and the bulk
+categorize_all_uncategorized() compatibility function.
 
 Phase 1 additions cover:
   - Specificity ordering (longer keywords beat shorter ones)
@@ -26,7 +25,7 @@ from categorizer import (
     match_by_keywords,
     match_by_history,
     get_category_by_name,
-    categorize_transaction,
+    suggest_category,
     categorize_all_uncategorized,
     normalize_description,
     HISTORY_CONFIDENCE_THRESHOLD,
@@ -105,7 +104,14 @@ def sample_account(db):
     return account
 
 
-def make_transaction(db, account, description, category_id=None, amount=-10.00):
+def make_transaction(
+    db,
+    account,
+    description,
+    category_id=None,
+    amount=-10.00,
+    learning_category_id=None,
+):
     """
     Helper to create and insert a transaction into the test database.
     Returns the created Transaction object.
@@ -116,7 +122,9 @@ def make_transaction(db, account, description, category_id=None, amount=-10.00):
         description=description,
         account_id=account.id,
         category_id=category_id,
-        learning_category_id=category_id,
+        learning_category_id=(
+            category_id if learning_category_id is None else learning_category_id
+        ),
     )
     db.add(t)
     db.commit()
@@ -309,29 +317,29 @@ class TestGetCategoryByName:
         assert result is None
 
 
-# --- Tests for categorize_transaction() ---
+# --- Tests for suggest_category() ---
 
-class TestCategorizeTransaction:
+class TestSuggestCategory:
 
     def test_assigns_category_via_keyword_match(
         self, db, sample_account, sample_categories
     ):
         """
-        A transaction whose description matches a keyword should be assigned
-        the corresponding category automatically.
+        Keyword matches should be returned as suggestions without assigning
+        the transaction's budget category.
         """
         transaction = make_transaction(db, sample_account, "STARBUCKS #4521")
         with patch("categorizer.load_keywords", return_value=SAMPLE_KEYWORDS):
-            result = categorize_transaction(transaction, db)
-        assert result is True
-        assert transaction.category_id == sample_categories["Coffee Shops"].id
+            result = suggest_category(transaction, db)
+        assert result == (sample_categories["Coffee Shops"].id, None, "keyword")
+        assert transaction.category_id is None
 
-    def test_assigns_category_via_history_match(
+    def test_suggests_category_via_history_match(
         self, db, sample_account, sample_categories
     ):
         """
         When no keyword matches but sufficient history exists, the transaction
-        should be categorized based on history.
+        should receive a history suggestion.
         """
         category = sample_categories["Electric"]
         for _ in range(HISTORY_MIN_MATCHES):
@@ -339,29 +347,32 @@ class TestCategorizeTransaction:
 
         new_transaction = make_transaction(db, sample_account, "PUGET SOUND ENERGY")
         with patch("categorizer.load_keywords", return_value=[]):  # disable keyword matching
-            result = categorize_transaction(new_transaction, db)
-        assert result is True
-        assert new_transaction.category_id == category.id
+            result = suggest_category(new_transaction, db)
+        assert result == (category.id, None, "history")
+        assert new_transaction.category_id is None
 
-    def test_returns_false_when_no_match_found(
+    def test_returns_no_suggestion_when_no_match_found(
         self, db, sample_account, sample_categories
     ):
         """
         When neither keyword nor history matching produces a result,
-        the transaction should remain uncategorized and return False.
+        the transaction should remain uncategorized with no suggestion.
         """
         transaction = make_transaction(db, sample_account, "TOTALLY UNKNOWN VENDOR 9999")
-        with patch("categorizer.load_keywords", return_value=[]):
-            result = categorize_transaction(transaction, db)
-        assert result is False
+        with (
+            patch("categorizer.load_keywords", return_value=[]),
+            patch("categorizer._model.predict", return_value=(None, 0.0)),
+        ):
+            result = suggest_category(transaction, db)
+        assert result == (None, None, None)
         assert transaction.category_id is None
 
-    def test_keyword_match_takes_priority_over_history(
+    def test_keyword_suggestion_takes_priority_over_history(
         self, db, sample_account, sample_categories
     ):
         """
         Keyword matching should take priority over history matching.
-        Even if history suggests a different category, the keyword match wins.
+        Even if history suggests a different category, the keyword suggestion wins.
         """
         # Build history pointing to Misc
         misc = sample_categories["Misc"]
@@ -371,9 +382,9 @@ class TestCategorizeTransaction:
         # Keyword says Coffee Shops
         new_transaction = make_transaction(db, sample_account, "STARBUCKS RESERVE")
         with patch("categorizer.load_keywords", return_value=SAMPLE_KEYWORDS):
-            result = categorize_transaction(new_transaction, db)
-        assert result is True
-        assert new_transaction.category_id == sample_categories["Coffee Shops"].id
+            result = suggest_category(new_transaction, db)
+        assert result == (sample_categories["Coffee Shops"].id, None, "keyword")
+        assert new_transaction.category_id is None
 
 
 # --- Tests for categorize_all_uncategorized() ---
@@ -409,7 +420,10 @@ class TestCategorizeAllUncategorized:
         make_transaction(db, sample_account, "MYSTERY VENDOR ABC")
         make_transaction(db, sample_account, "UNKNOWN CHARGE 999")
 
-        with patch("categorizer.load_keywords", return_value=[]):
+        with (
+            patch("categorizer.load_keywords", return_value=[]),
+            patch("categorizer._model.predict", return_value=(None, 0.0)),
+        ):
             result = categorize_all_uncategorized(db)
 
         assert result["needs_review"] == 2
