@@ -1169,8 +1169,12 @@
 <td>Where the suggestion came from (see badges below)</td>
 </tr>
 <tr>
-<td>Category</td>
-<td>Dropdown pre-filled with the suggestion</td>
+<td>Learning category</td>
+<td>Category label used by history matching and ML training</td>
+</tr>
+<tr>
+<td>Budget category</td>
+<td>Category used by budgets, reports, and transaction filters</td>
 </tr>
 <tr>
 <td>✓ / 👁</td>
@@ -1178,6 +1182,10 @@
 </tr>
 </tbody>
 </table>
+<p>Both category dropdowns initially use the suggestion. Change them independently
+when a purchase should train the model differently from how it is grouped in
+the budget. For example, a vacation restaurant charge can use <strong>Dining</strong> as its
+learning category and <strong>Family Travel</strong> as its budget category.</p>
 <h3 id="source-badges">Source badges<a class="headerlink" href="#source-badges" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -1209,25 +1217,25 @@
 <hr />
 <h2 id="confirming-suggestions">Confirming suggestions<a class="headerlink" href="#confirming-suggestions" title="Permanent link">&para;</a></h2>
 <h3 id="single-row">Single row<a class="headerlink" href="#single-row" title="Permanent link">&para;</a></h3>
-<p>Click the green <strong>✓</strong> button on any row to confirm that row's current dropdown selection. The row fades out and disappears from the queue.</p>
+<p>Click the green <strong>✓</strong> button on any row to save both category dropdowns. The row fades out and disappears from the queue.</p>
 <p>The ✓ button is:</p>
 <ul>
 <li><strong>Grey/disabled</strong> — no category selected yet</li>
 <li><strong>Green/enabled</strong> — a category is selected and ready to confirm</li>
 </ul>
 <h3 id="confirm-all-pre-selected">Confirm all pre-selected<a class="headerlink" href="#confirm-all-pre-selected" title="Permanent link">&para;</a></h3>
-<p>Click <strong>Confirm All Pre-selected</strong> (top right) to confirm every pre-ticked row at once using each row's current dropdown value. This is the fastest path for a clean import — scan the queue, fix any wrong suggestions, then click once.</p>
+<p>Click <strong>Confirm All Pre-selected</strong> (top right) to confirm every pre-ticked row at once using each row's current dropdown values. This is the fastest path for a clean import — scan the queue, fix either category where needed, then click once.</p>
 <h3 id="bulk-actions-bar">Bulk actions bar<a class="headerlink" href="#bulk-actions-bar" title="Permanent link">&para;</a></h3>
 <p>When you tick checkboxes, a bulk action bar appears above the table:</p>
 <ul>
-<li><strong>Confirm Selected</strong> — confirms each checked row using its own dropdown value</li>
-<li><strong>Override all dropdown + → button</strong> — pick one category and apply it to all checked rows at once</li>
+<li><strong>Confirm Selected</strong> — saves both category values for each checked row</li>
+<li><strong>Set values</strong> — choose Learning category, Budget category, or Both, then stage one category on all checked rows. This only changes the form; it does not save or approve them.</li>
 <li><strong>Exclude</strong> — marks all checked rows as excluded from reports</li>
 <li><strong>Clear</strong> — deselects everything</li>
 </ul>
 <hr />
 <h2 id="correcting-a-wrong-suggestion">Correcting a wrong suggestion<a class="headerlink" href="#correcting-a-wrong-suggestion" title="Permanent link">&para;</a></h2>
-<p>Just change the dropdown to the correct category. The ✓ button activates immediately. Click it to confirm your correction — the ML model retrains in the background so it learns from the correction for future imports.</p>
+<p>Change the Learning category to teach the model the correct label, and set the Budget category independently. The ✓ button activates when both have values. Approval saves both; the ML model retrains in the background when the learning label changes.</p>
 <hr />
 <h2 id="excluding-transactions">Excluding transactions<a class="headerlink" href="#excluding-transactions" title="Permanent link">&para;</a></h2>
 <p>Some transactions shouldn't count toward your budget — credit card payments, internal transfers, reimbursements you've already accounted for elsewhere. Click the <strong>👁</strong> button on any row to exclude it from reports.</p>

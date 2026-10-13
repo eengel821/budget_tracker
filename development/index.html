@@ -1226,7 +1226,12 @@ alembic/                ← migration history
 <tr>
 <td>category_id</td>
 <td>Integer</td>
-<td>FK to categories — null = uncategorized</td>
+<td>FK to categories — budget/reporting category; null = pending review</td>
+</tr>
+<tr>
+<td>learning_category_id</td>
+<td>Integer</td>
+<td>FK to categories — confirmed label used by history matching and ML training</td>
 </tr>
 <tr>
 <td>budget_month</td>
@@ -1281,7 +1286,10 @@ alembic/                ← migration history
 <h2 id="categorization-engine">Categorization engine<a class="headerlink" href="#categorization-engine" title="Permanent link">&para;</a></h2>
 <p><code>src/categorizer.py</code> provides two public functions:</p>
 <p><strong><code>suggest_category(transaction, db)</code></strong> — returns <code>(category_id, confidence, source)</code> without writing to the database. Called at import time to pre-fill the review queue.</p>
-<p><strong><code>confirm_category(transaction, category_id, db)</code></strong> — assigns the confirmed category, clears suggestion columns, and triggers background ML retraining.</p>
+<p><strong><code>confirm_category(transaction, category_id, db, learning_category_id)</code></strong> — assigns the budget category and learning label, clears suggestion columns, and triggers background ML retraining when the learning label changes.</p>
+<p>The Review Queue defaults both values to the suggestion. They can be set
+independently: budget aggregation continues to use <code>category_id</code>, while history
+matching and model training use <code>learning_category_id</code>.</p>
 <p>Three strategies in order:</p>
 <ol>
 <li><strong>Keyword matching</strong> — <code>match_by_keywords()</code> with specificity ordering, normalization, and negative keyword support</li>
