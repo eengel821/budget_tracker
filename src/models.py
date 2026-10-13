@@ -78,8 +78,9 @@ class Transaction(Base):
                               queue UI to show the appropriate badge and pre-tick
                               rows that are likely correct
 
-    Once the user confirms a suggestion in the review queue, category_id is set
-    and all three suggestion columns are cleared.
+    Once the user confirms a suggestion in the review queue, category_id stores
+    the budget category and learning_category_id stores the ML label. All three
+    suggestion columns are then cleared.
     """
     __tablename__ = "transactions"
 
@@ -93,6 +94,7 @@ class Transaction(Base):
     parent_id   = Column(Integer, ForeignKey("transactions.id"), nullable=True)
     account_id  = Column(Integer, ForeignKey("accounts.id"), nullable=True)
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
+    learning_category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
 
     # Optional budget month override — when set, the budget page uses this
     # instead of transaction.date for month attribution. The transactions page
@@ -110,6 +112,7 @@ class Transaction(Base):
         foreign_keys=[category_id],
         back_populates="transactions",
     )
+    learning_category  = relationship("Category", foreign_keys=[learning_category_id])
     suggested_category = relationship(
         "Category",
         foreign_keys=[suggested_category_id],

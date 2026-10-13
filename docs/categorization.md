@@ -276,8 +276,9 @@ dataset grows.
 
 ### Retraining from Corrections
 
-Every time you correct a categorization in the review queue, the corrected label is
-saved to the database. The model then retrains from scratch on all labeled transactions.
+When a review item is approved, its Learning category is saved as the model label.
+The Budget category is saved separately for budget and report calculations. The
+model then retrains from scratch using confirmed learning labels.
 
 At your current data scale (under 200 transactions), a full retrain takes
 milliseconds — scikit-learn can solve the optimization problem almost instantly for
@@ -360,6 +361,6 @@ approximately 3–5 examples per category is needed before training is attempted
 | Fallback | Manual review queue | Low-confidence predictions | N/A |
 
 The system is designed to improve continuously. Every transaction you verify or correct
-in the review queue adds a labeled example, which improves the model's accuracy on
+in the review queue adds a learning-labeled example, which improves the model's accuracy on
 similar future transactions. Over time, the fraction of transactions requiring manual
 review should decrease as the model learns your specific spending patterns.

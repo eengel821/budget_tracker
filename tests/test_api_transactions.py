@@ -40,6 +40,8 @@ class TestAssignCategory:
         assert data["transaction_id"] == txn.id
         assert data["category_id"] == cat.id
         assert data["category_name"] == "Groceries"
+        assert data["learning_category_id"] == cat.id
+        assert data["learning_category_name"] == "Groceries"
 
     def test_assign_category_persists_to_db(self, client, db, api_seed):
         """After assignment, the transaction's category_id is updated in the database."""
@@ -53,11 +55,47 @@ class TestAssignCategory:
 
         db.refresh(txn)
         assert txn.category_id == cat.id
+        assert txn.learning_category_id == cat.id
+
+    def test_assign_category_saves_separate_learning_label(self, client, db, api_seed):
+        txn = api_seed["txn"]
+        budget_category = api_seed["groceries"]
+        learning_category = api_seed["dining"]
+
+        response = client.put(
+            f"/transactions/{txn.id}/category",
+            json={
+                "category_id": budget_category.id,
+                "learning_category_id": learning_category.id,
+            },
+        )
+
+        assert response.status_code == 200
+        db.refresh(txn)
+        assert txn.category_id == budget_category.id
+        assert txn.learning_category_id == learning_category.id
+
+    def test_budget_category_edit_preserves_existing_learning_label(self, client, db, api_seed):
+        txn = api_seed["txn"]
+        txn.category_id = api_seed["groceries"].id
+        txn.learning_category_id = api_seed["dining"].id
+        db.commit()
+
+        response = client.put(
+            f"/transactions/{txn.id}/category",
+            json={"category_id": api_seed["savings"].id},
+        )
+
+        assert response.status_code == 200
+        db.refresh(txn)
+        assert txn.category_id == api_seed["savings"].id
+        assert txn.learning_category_id == api_seed["dining"].id
 
     def test_assign_category_overrides_existing(self, client, db, api_seed):
         """Assigning a new category to an already-categorized transaction replaces it."""
         txn = api_seed["txn"]
         txn.category_id = api_seed["groceries"].id
+        txn.learning_category_id = api_seed["groceries"].id
         db.commit()
 
         resp = client.put(
@@ -68,6 +106,7 @@ class TestAssignCategory:
         assert resp.status_code == 200
         db.refresh(txn)
         assert txn.category_id == api_seed["dining"].id
+        assert txn.learning_category_id == api_seed["groceries"].id
 
     def test_assign_category_transaction_not_found(self, client, db, api_seed):
         """Returns 404 when the transaction ID does not exist."""
@@ -87,6 +126,18 @@ class TestAssignCategory:
         )
         assert resp.status_code == 404
         assert "Category not found" in resp.json()["detail"]
+
+    def test_assign_category_learning_category_not_found(self, client, db, api_seed):
+        txn = api_seed["txn"]
+        response = client.put(
+            f"/transactions/{txn.id}/category",
+            json={
+                "category_id": api_seed["groceries"].id,
+                "learning_category_id": 99999,
+            },
+        )
+        assert response.status_code == 404
+        assert "Learning category not found" in response.json()["detail"]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -68,7 +68,8 @@ alembic/                ← migration history
 | is_split | Boolean | Parent of a split transaction |
 | parent_id | Integer | FK to self — set on split children |
 | account_id | Integer | FK to accounts |
-| category_id | Integer | FK to categories — null = uncategorized |
+| category_id | Integer | FK to categories — budget/reporting category; null = pending review |
+| learning_category_id | Integer | FK to categories — confirmed label used by history matching and ML training |
 | budget_month | Date | Budget attribution override (nullable) |
 | suggested_category_id | Integer | Pre-filled suggestion (nullable) |
 | suggestion_confidence | Float | ML confidence 0–1 (nullable) |
@@ -90,7 +91,11 @@ alembic/                ← migration history
 
 **`suggest_category(transaction, db)`** — returns `(category_id, confidence, source)` without writing to the database. Called at import time to pre-fill the review queue.
 
-**`confirm_category(transaction, category_id, db)`** — assigns the confirmed category, clears suggestion columns, and triggers background ML retraining.
+**`confirm_category(transaction, category_id, db, learning_category_id)`** — assigns the budget category and learning label, clears suggestion columns, and triggers background ML retraining when the learning label changes.
+
+The Review Queue defaults both values to the suggestion. They can be set
+independently: budget aggregation continues to use `category_id`, while history
+matching and model training use `learning_category_id`.
 
 Three strategies in order:
 

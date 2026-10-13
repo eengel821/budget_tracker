@@ -32,7 +32,7 @@
     <span><span class="badge-source badge-history">⏱ History</span> — matched past transactions</span>
     <span><span class="badge-source badge-ml-high">ML 95%</span> — high confidence ML prediction</span>
     <span><span class="badge-source badge-ml-low">ML 62%</span> — low confidence, verify carefully</span>
-    <span class="text-muted">Pre-ticked rows are ready to confirm. Untick or change category to correct.</span>
+    <span class="text-muted">Set the learning label independently from the budget category; approval saves both.</span>
 </div>
 {% endif %}
 
@@ -61,15 +61,20 @@
         <button class="btn btn-sm btn-success" onclick="confirmChecked()">
             <i class="bi bi-check-lg me-1"></i>Confirm Selected
         </button>
-        <div class="d-flex gap-1 align-items-center">
+        <div class="d-flex gap-1 align-items-center flex-wrap">
+            <select class="form-select form-select-sm" id="bulk-target" aria-label="Bulk category field">
+                <option value="budget">Budget category</option>
+                <option value="learning">Learning category</option>
+                <option value="both">Both categories</option>
+            </select>
             <select class="form-select form-select-sm" id="bulk-category" style="min-width:160px;">
-                <option value="">— Override all —</option>
+                <option value="">— Choose category —</option>
                 {% for c in categories %}
                 <option value="{{ c.id }}">{{ c.name }}</option>
                 {% endfor %}
             </select>
-            <button class="btn btn-sm btn-primary" onclick="applyBulk()" title="Apply one category to all selected rows">
-                <i class="bi bi-arrow-right"></i>
+            <button class="btn btn-sm btn-outline-primary" onclick="stageBulkCategories()" title="Set selected rows without saving them">
+                <i class="bi bi-pencil-square me-1"></i>Set values
             </button>
         </div>
         <button class="btn btn-sm btn-outline-warning" onclick="excludeBulk()">
@@ -96,7 +101,8 @@
                         <th class="sortable" tabindex="0" role="button" data-col="3" data-type="str" aria-sort="none">Account <i class="bi bi-arrow-down-up sort-icon"></i></th>
                         <th class="sortable text-end" tabindex="0" role="button" data-col="4" data-type="num" aria-sort="none">Amount <i class="bi bi-arrow-down-up sort-icon"></i></th>
                         <th class="sortable" style="width:90px;" tabindex="0" role="button" data-col="5" data-type="str" aria-sort="none">Source <i class="bi bi-arrow-down-up sort-icon"></i></th>
-                        <th class="sortable" tabindex="0" role="button" data-col="6" data-type="str" aria-sort="none">Category <i class="bi bi-arrow-down-up sort-icon"></i></th>
+                        <th class="sortable" tabindex="0" role="button" data-col="6" data-type="str" aria-sort="none">Learning category <i class="bi bi-arrow-down-up sort-icon"></i></th>
+                        <th class="sortable" tabindex="0" role="button" data-col="7" data-type="str" aria-sort="none">Budget category <i class="bi bi-arrow-down-up sort-icon"></i></th>
                         <th style="width:100px;"></th>
                     </tr>
                 </thead>
@@ -143,14 +149,31 @@
                             {% endif %}
                         </td>
 
-                        <!-- Category selector -->
+                        <!-- Learning category selector -->
+                        <td class="align-middle">
+                            <select
+                                class="form-select form-select-sm category-select"
+                                id="learning-category-{{ t.id }}"
+                                name="learning_category_id"
+                                onchange="onCategoryChange({{ t.id }}, this)">
+                                <option value="">— Select learning label —</option>
+                                {% for c in categories %}
+                                <option value="{{ c.id }}"
+                                    {% if t.suggested_category_id == c.id %}selected{% endif %}>
+                                    {{ c.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </td>
+
+                        <!-- Budget category selector -->
                         <td class="align-middle">
                             <select
                                 class="form-select form-select-sm category-select"
                                 id="category-{{ t.id }}"
                                 name="category_id"
                                 onchange="onCategoryChange({{ t.id }}, this)">
-                                <option value="">— Select category —</option>
+                                <option value="">— Select budget category —</option>
                                 {% for c in categories %}
                                 <option value="{{ c.id }}"
                                     {% if t.suggested_category_id == c.id %}selected{% endif %}>
@@ -167,7 +190,7 @@
                                     id="confirm-btn-{{ t.id }}"
                                     class="btn btn-sm {% if t.suggested_category_id %}btn-success{% else %}btn-outline-secondary{% endif %}"
                                     onclick="assignSingle({{ t.id }})"
-                                    title="Confirm category"
+                                    title="Approve learning and budget categories"
                                     {% if not t.suggested_category_id %}disabled{% endif %}>
                                     <i class="bi bi-check-lg"></i>
                                 </button>
@@ -240,5 +263,5 @@
         border-color: #3a3a55;
     }
 </style>
-<script src="/static/js/review.js"></script>
+<script src="/static/js/review.js?v=2"></script>
 {% endblock %}

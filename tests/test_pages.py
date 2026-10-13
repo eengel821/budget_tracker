@@ -158,6 +158,10 @@ class TestReviewPage:
         assert 'id="review-progress"' in resp.text
         assert 'data-type="date"' in resp.text
         assert 'data-type="num"' in resp.text
+        assert 'id="learning-category-' in resp.text
+        assert 'id="category-' in resp.text
+        assert 'id="bulk-target"' in resp.text
+        assert "stageBulkCategories()" in resp.text
 
     def test_review_empty_queue_returns_200(self, client, db):
         """Review page renders without error when queue is empty."""

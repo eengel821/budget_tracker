@@ -187,7 +187,7 @@ def match_by_history(description: str, db: Session) -> str | None:
     Attempt to assign a category based on previously confirmed transactions
     with the same description.
 
-    Only transactions with category_id set (user-confirmed) are counted.
+    Only transactions with learning_category_id set (user-confirmed) are counted.
     Returns the dominant category if it meets the confidence threshold and
     minimum match count.
 
@@ -200,13 +200,13 @@ def match_by_history(description: str, db: Session) -> str | None:
     """
     previous = db.query(Transaction).filter(
         Transaction.description == description,
-        Transaction.category_id.isnot(None),
+        Transaction.learning_category_id.isnot(None),
     ).all()
 
     if len(previous) < HISTORY_MIN_MATCHES:
         return None
 
-    category_counts = Counter(t.category_id for t in previous)
+    category_counts = Counter(t.learning_category_id for t in previous)
     most_common_id, most_common_count = category_counts.most_common(1)[0]
     confidence = most_common_count / len(previous)
 
@@ -263,8 +263,8 @@ class CategorizationModel:
 
     def train(self, db: Session) -> bool:
         """
-        Train the model on all confirmed (user-assigned) transactions in the
-        database. Retrains from scratch on each call.
+        Train the model on all confirmed transactions with a learning label.
+        Retrains from scratch on each call.
 
         Feature construction:
           - TF-IDF on normalized description text (char 2-4 grams, max 5000 features).
@@ -275,8 +275,8 @@ class CategorizationModel:
             dominate $30 charges by a factor of 100.
           - Month of year (1-12) appended to capture seasonal patterns.
 
-        Only categories with at least ML_MIN_EXAMPLES_PER_CATEGORY confirmed
-        transactions are included. Categories with too few examples would
+        Only learning categories with at least ML_MIN_EXAMPLES_PER_CATEGORY
+        confirmed transactions are included. Labels with too few examples would
         produce unreliable predictions and inflate false positive rates.
 
         Args:
@@ -296,9 +296,9 @@ class CategorizationModel:
             logger.warning("scikit-learn not installed. ML categorization unavailable.")
             return False
 
-        # Fetch all confirmed transactions (category_id set, not excluded, not split children)
+        # Fetch all confirmed transactions with an ML label, excluding split children.
         labeled = db.query(Transaction).filter(
-            Transaction.category_id.isnot(None),
+            Transaction.learning_category_id.isnot(None),
             Transaction.excluded == False,       # noqa: E712
             Transaction.parent_id.is_(None),
         ).all()
@@ -308,12 +308,12 @@ class CategorizationModel:
             return False
 
         # Drop categories below the minimum example threshold
-        cat_counts = Counter(t.category_id for t in labeled)
+        cat_counts = Counter(t.learning_category_id for t in labeled)
         valid_cat_ids = {
             cat_id for cat_id, count in cat_counts.items()
             if count >= ML_MIN_EXAMPLES_PER_CATEGORY
         }
-        labeled = [t for t in labeled if t.category_id in valid_cat_ids]
+        labeled = [t for t in labeled if t.learning_category_id in valid_cat_ids]
 
         if len(valid_cat_ids) < 2:
             logger.info(
@@ -322,20 +322,20 @@ class CategorizationModel:
             )
             return False
 
-        # Resolve category names (more robust than IDs across DB rebuilds)
+        # Resolve learning category names (more robust than IDs across DB rebuilds)
         cat_id_to_name = {}
         for t in labeled:
-            if t.category_id not in cat_id_to_name:
-                cat = db.query(Category).filter(Category.id == t.category_id).first()
+            if t.learning_category_id not in cat_id_to_name:
+                cat = db.query(Category).filter(Category.id == t.learning_category_id).first()
                 if cat:
-                    cat_id_to_name[t.category_id] = cat.name
+                    cat_id_to_name[t.learning_category_id] = cat.name
 
         descriptions = [normalize_description(t.description) for t in labeled]
         amounts      = np.array([np.log1p(abs(t.amount)) for t in labeled]).reshape(-1, 1)
         months       = np.array([t.date.month for t in labeled]).reshape(-1, 1)
 
         le     = LabelEncoder()
-        labels = le.fit_transform([cat_id_to_name.get(t.category_id, "") for t in labeled])
+        labels = le.fit_transform([cat_id_to_name.get(t.learning_category_id, "") for t in labeled])
 
         tfidf = TfidfVectorizer(
             analyzer="char_wb",
@@ -576,24 +576,33 @@ def confirm_category(
     transaction: Transaction,
     category_id: int,
     db: Session,
+    learning_category_id: int | None = None,
 ) -> None:
     """
     Confirm or correct a category suggestion in the review queue.
 
-    Assigns the confirmed category_id, clears all suggestion columns, and
-    triggers an ML model retrain so the correction is learned immediately.
+    Assigns the budget category and learning label, clears all suggestion
+    columns, and retrains only when the learning label changes.
 
     Args:
         transaction: The Transaction being confirmed.
-        category_id: The confirmed category ID (may differ from suggestion).
+        category_id: The category used for budgets and reports.
         db: Active SQLAlchemy session.
+        learning_category_id: The ML target label. Defaults to the existing
+            learning label, or to category_id when the transaction has none.
     """
+    previous_learning_category_id = transaction.learning_category_id
+    if learning_category_id is None:
+        learning_category_id = transaction.learning_category_id or category_id
+
     transaction.category_id           = category_id
+    transaction.learning_category_id  = learning_category_id
     transaction.suggested_category_id = None
     transaction.suggestion_confidence = None
     transaction.suggestion_source     = None
     db.commit()
-    retrain_model(db)
+    if previous_learning_category_id != learning_category_id:
+        retrain_model(db)
 
 
 # ── Bulk operations ───────────────────────────────────────────────────────────

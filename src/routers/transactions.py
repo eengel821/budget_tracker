@@ -69,19 +69,36 @@ def assign_category(
     """
     transaction = get_transaction_or_404(db, transaction_id)
 
-    category = db.query(Category).filter(Category.id == body.category_id).first()
-    if not category:
+    budget_category = db.query(Category).filter(Category.id == body.category_id).first()
+    if not budget_category:
         raise HTTPException(status_code=404, detail="Category not found")
 
-    # confirm_category assigns category_id, clears suggestion columns, and
-    # triggers an ML model retrain so this correction is learned immediately.
-    confirm_category(transaction, body.category_id, db)
+    if body.learning_category_id is not None:
+        learning_category_id = body.learning_category_id
+    elif transaction.learning_category_id is not None:
+        learning_category_id = transaction.learning_category_id
+    elif transaction.category_id is not None:
+        learning_category_id = transaction.category_id
+    else:
+        learning_category_id = budget_category.id
+    learning_category = db.query(Category).filter(Category.id == learning_category_id).first()
+    if not learning_category:
+        raise HTTPException(status_code=404, detail="Learning category not found")
+
+    confirm_category(
+        transaction,
+        budget_category.id,
+        db,
+        learning_category_id=learning_category.id,
+    )
 
     return {
-        "message":       f"Category '{category.name}' assigned",
-        "transaction_id": transaction_id,
-        "category_id":    category.id,
-        "category_name":  category.name,
+        "message":                f"Budget category '{budget_category.name}' assigned",
+        "transaction_id":         transaction_id,
+        "category_id":            budget_category.id,
+        "category_name":          budget_category.name,
+        "learning_category_id":   learning_category.id,
+        "learning_category_name": learning_category.name,
     }
 
 

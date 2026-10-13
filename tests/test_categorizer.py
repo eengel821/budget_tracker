@@ -116,6 +116,7 @@ def make_transaction(db, account, description, category_id=None, amount=-10.00):
         description=description,
         account_id=account.id,
         category_id=category_id,
+        learning_category_id=category_id,
     )
     db.add(t)
     db.commit()
@@ -187,6 +188,22 @@ class TestMatchByKeywords:
 # --- Tests for match_by_history() ---
 
 class TestMatchByHistory:
+
+    def test_uses_learning_label_instead_of_budget_category(
+        self, db, sample_account, sample_categories
+    ):
+        budget_category = sample_categories["Misc"]
+        learning_category = sample_categories["Coffee Shops"]
+        for _ in range(HISTORY_MIN_MATCHES):
+            make_transaction(
+                db,
+                sample_account,
+                "VACATION CAFE",
+                category_id=budget_category.id,
+                learning_category_id=learning_category.id,
+            )
+
+        assert match_by_history("VACATION CAFE", db) == "Coffee Shops"
 
     def test_returns_category_with_sufficient_confident_history(
         self, db, sample_account, sample_categories

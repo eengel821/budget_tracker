@@ -10,8 +10,9 @@ from pydantic import BaseModel
 
 
 class CategoryAssignment(BaseModel):
-    """Assign a category to a transaction."""
+    """Assign a budget category and optionally an independent ML label."""
     category_id: int
+    learning_category_id: Optional[int] = None
 
 
 class BudgetUpdate(BaseModel):

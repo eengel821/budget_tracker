@@ -13,8 +13,8 @@
  *   - checked + green  — pre-selected by the suggestion engine, ready to confirm
  *
  * Bulk bar actions:
- *   - "Confirm Selected" — confirms each checked row using its own dropdown value
- *   - "Override Category" + "Apply Override" — sets all checked rows to one category
+ *   - "Confirm Selected" — confirms each checked row using both category values
+ *   - "Set values" — stages a bulk category change in selected rows without saving
  *   - "Exclude Selected" — excludes all checked rows
  */
 
@@ -56,7 +56,7 @@ function sortReviewRows(column, type, direction) {
     rows.sort((left, right) => {
         const value = row => {
             const cell = row.querySelectorAll("td")[column];
-            if (column === 6) return cell.querySelector("select")?.selectedOptions[0]?.textContent.trim() ?? "";
+            if (cell.querySelector("select")) return cell.querySelector("select").selectedOptions[0]?.textContent.trim() ?? "";
             return cell.dataset.sortValue ?? cell.textContent.trim();
         };
         const leftValue = value(left);
@@ -124,8 +124,12 @@ function getSelectedIds() {
  */
 function updateSelection() {
     const ids = getSelectedIds();
-    document.getElementById("selected-count").textContent = ids.length;
     const bar = document.getElementById("bulk-bar");
+    const selectAll = document.getElementById("select-all");
+    const selectedCount = document.getElementById("selected-count");
+    if (!bar || !selectAll || !selectedCount) return;
+
+    selectedCount.textContent = ids.length;
     bar.classList.toggle("d-none", ids.length === 0);
 
     document.querySelectorAll(".row-check").forEach(cb => {
@@ -135,7 +139,6 @@ function updateSelection() {
 
     const all     = [...document.querySelectorAll(".row-check")];
     const checked = all.filter(cb => cb.checked);
-    const selectAll = document.getElementById("select-all");
     selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
     selectAll.checked       = all.length > 0 && checked.length === all.length;
 }
@@ -148,11 +151,13 @@ function updateSelection() {
  * @param {number} transactionId
  * @param {HTMLSelectElement} selectEl
  */
-function onCategoryChange(transactionId, selectEl) {
+function onCategoryChange(transactionId) {
     const btn = document.getElementById(`confirm-btn-${transactionId}`);
     if (!btn) return;
+    const budgetCategory = document.getElementById(`category-${transactionId}`)?.value;
+    const learningCategory = document.getElementById(`learning-category-${transactionId}`)?.value;
 
-    if (selectEl.value) {
+    if (budgetCategory && learningCategory) {
         btn.disabled = false;
         btn.className = "btn btn-sm btn-success";
     } else {
@@ -206,14 +211,20 @@ function updateCount() {
  * @param {number} transactionId
  */
 async function assignSingle(transactionId) {
-    const select     = document.getElementById("category-" + transactionId);
-    const categoryId = select.value;
-    if (!categoryId) { alert("Please select a category first."); return; }
+    const categoryId = document.getElementById(`category-${transactionId}`).value;
+    const learningCategoryId = document.getElementById(`learning-category-${transactionId}`).value;
+    if (!categoryId || !learningCategoryId) {
+        alert("Select both a learning category and a budget category first.");
+        return;
+    }
 
     const response = await fetch(`/transactions/${transactionId}/category`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category_id: parseInt(categoryId) })
+        body: JSON.stringify({
+            category_id: parseInt(categoryId, 10),
+            learning_category_id: parseInt(learningCategoryId, 10)
+        })
     });
 
     if (response.ok) { removeRows([transactionId]); }
@@ -253,12 +264,16 @@ async function confirmChecked() {
 
     for (const cb of checked) {
         const id         = parseInt(cb.dataset.id);
-        const select     = document.getElementById("category-" + id);
-        const categoryId = select?.value;
+        const categoryId = document.getElementById(`category-${id}`)?.value;
+        const learningCategoryId = document.getElementById(`learning-category-${id}`)?.value;
 
-        if (!categoryId) { skipped++; continue; }
+        if (!categoryId || !learningCategoryId) { skipped++; continue; }
 
-        updates.push({ id, categoryId: parseInt(categoryId, 10) });
+        updates.push({
+            id,
+            categoryId: parseInt(categoryId, 10),
+            learningCategoryId: parseInt(learningCategoryId, 10)
+        });
     }
 
     const result = await processBulkUpdates(updates, "Confirming");
@@ -270,27 +285,35 @@ async function confirmChecked() {
 }
 
 /**
- * Applies a single override category to all checked rows.
- * Uses the bulk-category dropdown in the floating bar.
- * Only fires if the user has explicitly chosen an override category.
+ * Stages one category on selected rows without sending requests or approving.
  */
-async function applyBulk() {
+function stageBulkCategories() {
     const ids        = getSelectedIds();
     const select     = document.getElementById("bulk-category");
     const categoryId = select.value;
+    const target     = document.getElementById("bulk-target").value;
+    if (!ids.length) return;
     if (!categoryId) {
-        alert("Choose an override category from the dropdown first, or use \"Confirm Selected\" to confirm each row's existing category.");
+        alert("Choose a category to stage on the selected rows.");
         return;
     }
 
-    const result = await processBulkUpdates(
-        ids.map(id => ({ id, categoryId: parseInt(categoryId, 10) })),
-        "Updating"
-    );
+    ids.forEach(id => {
+        if (target === "budget" || target === "both") {
+            document.getElementById(`category-${id}`).value = categoryId;
+        }
+        if (target === "learning" || target === "both") {
+            document.getElementById(`learning-category-${id}`).value = categoryId;
+        }
+        onCategoryChange(id);
+    });
 
-    if (result?.succeeded.length) removeRows(result.succeeded);
-    if (result?.failed.length) alert(`${result.failed.length} transaction(s) failed to update. Please try again.`);
-
+    const status = document.getElementById("review-progress");
+    status.className = "alert alert-info py-2 mb-2";
+    status.querySelector(".progress").classList.add("d-none");
+    document.getElementById("review-progress-label").textContent =
+        `Values staged for ${ids.length} row${ids.length === 1 ? "" : "s"}; nothing saved yet. Approve selected to save.`;
+    document.getElementById("review-progress-count").textContent = `${ids.length} staged`;
     select.value = "";
 }
 
@@ -311,12 +334,13 @@ async function processBulkUpdates(updates, label, exclude = false) {
     if (bulkActionRunning || !updates.length) return null;
 
     bulkActionRunning = true;
-    const controls = [...document.querySelectorAll("#bulk-bar button, #bulk-category, #confirm-preselected, .row-check, #select-all")];
+    const controls = [...document.querySelectorAll("#bulk-bar button, #bulk-category, #bulk-target, #confirm-preselected, .row-check, #select-all, .category-select")];
     controls.forEach(control => { control.disabled = true; });
     const status = document.getElementById("review-progress");
     const bar = document.getElementById("review-progress-bar");
     const progress = status.querySelector(".progress");
     status.className = "alert alert-info py-2 mb-2";
+    progress.classList.remove("d-none");
     bar.className = "progress-bar progress-bar-striped progress-bar-animated";
     document.getElementById("review-progress-label").textContent = `${label} transactions...`;
     document.getElementById("review-progress-count").textContent = `0 of ${updates.length}`;
@@ -336,7 +360,10 @@ async function processBulkUpdates(updates, label, exclude = false) {
                 : {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ category_id: update.categoryId })
+                    body: JSON.stringify({
+                        category_id: update.categoryId,
+                        learning_category_id: update.learningCategoryId
+                    })
                 };
 
             try {

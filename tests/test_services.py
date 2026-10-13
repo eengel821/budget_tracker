@@ -233,6 +233,25 @@ class TestBuildBudgetPageDataRows:
         assert row["remaining"] == pytest.approx(300.0)
         assert row["pct_used"] == pytest.approx(40.0)
 
+    def test_budget_uses_budget_category_when_learning_label_differs(self, db, svc_seed):
+        family_travel = Category(name="Family Travel", monthly_budget=500.0)
+        db.add(family_travel)
+        db.commit()
+        db.add(Transaction(
+            date=date(2025, 3, 15),
+            amount=-120.0,
+            description="VACATION CAFE",
+            account_id=svc_seed["acct"].id,
+            category_id=family_travel.id,
+            learning_category_id=svc_seed["dining"].id,
+        ))
+        db.commit()
+
+        data = build_budget_page_data(db, 2025, 3)
+
+        row = next(r for r in data["monthly_rows"] if r["category"] == "Family Travel")
+        assert row["spent"] == pytest.approx(-120.0)
+
     def test_expense_row_remaining_uses_abs_spent(self, db, svc_seed):
         """remaining = budgeted - abs(spent), not budgeted - signed_spent."""
         make_txn(db, svc_seed, amount=-300.0, category="groceries")

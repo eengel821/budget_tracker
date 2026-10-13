@@ -28,8 +28,14 @@ Each row shows:
 | Account | Source bank account |
 | Amount | Green = credit/income, red = expense |
 | Source | Where the suggestion came from (see badges below) |
-| Category | Dropdown pre-filled with the suggestion |
+| Learning category | Category label used by history matching and ML training |
+| Budget category | Category used by budgets, reports, and transaction filters |
 | ✓ / 👁 | Confirm or exclude buttons |
+
+Both category dropdowns initially use the suggestion. Change them independently
+when a purchase should train the model differently from how it is grouped in
+the budget. For example, a vacation restaurant charge can use **Dining** as its
+learning category and **Family Travel** as its budget category.
 
 ### Source badges
 
@@ -48,7 +54,7 @@ Rows with keyword or history matches, and ML predictions above 75% confidence, a
 
 ### Single row
 
-Click the green **✓** button on any row to confirm that row's current dropdown selection. The row fades out and disappears from the queue.
+Click the green **✓** button on any row to save both category dropdowns. The row fades out and disappears from the queue.
 
 The ✓ button is:
 
@@ -57,14 +63,14 @@ The ✓ button is:
 
 ### Confirm all pre-selected
 
-Click **Confirm All Pre-selected** (top right) to confirm every pre-ticked row at once using each row's current dropdown value. This is the fastest path for a clean import — scan the queue, fix any wrong suggestions, then click once.
+Click **Confirm All Pre-selected** (top right) to confirm every pre-ticked row at once using each row's current dropdown values. This is the fastest path for a clean import — scan the queue, fix either category where needed, then click once.
 
 ### Bulk actions bar
 
 When you tick checkboxes, a bulk action bar appears above the table:
 
-- **Confirm Selected** — confirms each checked row using its own dropdown value
-- **Override all dropdown + → button** — pick one category and apply it to all checked rows at once
+- **Confirm Selected** — saves both category values for each checked row
+- **Set values** — choose Learning category, Budget category, or Both, then stage one category on all checked rows. This only changes the form; it does not save or approve them.
 - **Exclude** — marks all checked rows as excluded from reports
 - **Clear** — deselects everything
 
@@ -72,7 +78,7 @@ When you tick checkboxes, a bulk action bar appears above the table:
 
 ## Correcting a wrong suggestion
 
-Just change the dropdown to the correct category. The ✓ button activates immediately. Click it to confirm your correction — the ML model retrains in the background so it learns from the correction for future imports.
+Change the Learning category to teach the model the correct label, and set the Budget category independently. The ✓ button activates when both have values. Approval saves both; the ML model retrains in the background when the learning label changes.
 
 ---
 
