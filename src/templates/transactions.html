@@ -8,20 +8,23 @@
     <div>
         <h4 class="mb-0 fw-bold">Transactions</h4>
         <small class="text-muted" id="results-count">{{ total_count }} transaction{{ 's' if total_count != 1 else '' }} found</small>
+        {% if selected_budget_period %}
+        <div class="small text-muted">Budget month: {{ selected_budget_period }}</div>
+        {% endif %}
     </div>
     <div class="d-flex gap-2">
         {% if show_excluded %}
-        <a href="/transactions?{% if selected_month %}month={{ selected_month }}&{% endif %}{% if selected_account %}account_id={{ selected_account }}&{% endif %}{% if selected_category %}category_id={{ selected_category }}{% endif %}"
+        <a href="/transactions?{% if selected_month %}month={{ selected_month }}&{% endif %}{% if selected_account %}account_id={{ selected_account }}&{% endif %}{% if selected_category %}category_id={{ selected_category }}&{% endif %}{% if selected_budget_period %}budget_period={{ selected_budget_period }}{% endif %}"
             class="btn btn-sm btn-warning">
             <i class="bi bi-eye-slash me-1"></i>Hide Excluded
         </a>
         {% else %}
-        <a href="/transactions?show_excluded=1{% if selected_month %}&month={{ selected_month }}{% endif %}{% if selected_account %}&account_id={{ selected_account }}{% endif %}{% if selected_category %}&category_id={{ selected_category }}{% endif %}"
+        <a href="/transactions?show_excluded=1{% if selected_month %}&month={{ selected_month }}{% endif %}{% if selected_account %}&account_id={{ selected_account }}{% endif %}{% if selected_category %}&category_id={{ selected_category }}{% endif %}{% if selected_budget_period %}&budget_period={{ selected_budget_period }}{% endif %}"
             class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-eye me-1"></i>Show Excluded
         </a>
         {% endif %}
-        <a href="/transactions/download?{% if selected_month %}month={{ selected_month }}&{% endif %}{% if selected_account %}account_id={{ selected_account }}&{% endif %}{% if selected_category %}category_id={{ selected_category }}&{% endif %}{% if selected_keyword %}keyword={{ selected_keyword }}&{% endif %}{% if selected_date_from %}date_from={{ selected_date_from }}&{% endif %}{% if selected_date_to %}date_to={{ selected_date_to }}{% endif %}"
+        <a href="/transactions/download?{% if selected_month %}month={{ selected_month }}&{% endif %}{% if selected_account %}account_id={{ selected_account }}&{% endif %}{% if selected_category %}category_id={{ selected_category }}&{% endif %}{% if selected_budget_period %}budget_period={{ selected_budget_period }}&{% endif %}{% if selected_keyword %}keyword={{ selected_keyword }}&{% endif %}{% if selected_date_from %}date_from={{ selected_date_from }}&{% endif %}{% if selected_date_to %}date_to={{ selected_date_to }}{% endif %}"
             class="btn btn-sm btn-outline-success">
             <i class="bi bi-download me-1"></i>Download CSV
         </a>
@@ -149,7 +152,7 @@
 </div>
 
 <!-- Filters -->
-{% set has_filters = selected_month or selected_account or selected_category or selected_keyword or selected_date_from or selected_date_to %}
+{% set has_filters = selected_month or selected_account or selected_category or selected_budget_period or selected_keyword or selected_date_from or selected_date_to %}
 <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center"
         style="cursor:pointer;" onclick="toggleFilters()">
@@ -167,6 +170,9 @@
     <div id="filter-body" {% if not has_filters %}style="display:none;"{% endif %}>
         <div class="card-body">
             <form method="get" action="/transactions" id="filter-form" class="row g-3 align-items-end">
+                {% if selected_budget_period %}
+                <input type="hidden" name="budget_period" value="{{ selected_budget_period }}">
+                {% endif %}
                 <!-- Row 1: Month, Account, Category -->
                 <div class="col-12 col-sm-6 col-md-3">
                     <label class="form-label small fw-semibold">Month</label>

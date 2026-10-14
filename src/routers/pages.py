@@ -12,13 +12,10 @@ import io
 from datetime import date, datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
-from sqlalchemy import extract, func, select as sa_select
-from sqlalchemy.orm import Session
-
 from database import get_db
 from deps import templates
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse, StreamingResponse
 from models import Account, Category, SavingsTransaction, Transaction
 from services.aggregations import (
     get_available_months,
@@ -32,6 +29,9 @@ from services.aggregations import (
     parse_month,
 )
 from services.budget import build_budget_page_data, calculate_transaction_page_totals
+from sqlalchemy import case, extract, func
+from sqlalchemy import select as sa_select
+from sqlalchemy.orm import Session
 
 router = APIRouter()
 
@@ -75,7 +75,7 @@ def dashboard(
     actual_pie_values = [spent_by_cat[k] for k in actual_pie_labels]
 
     # 12-month trend chart
-    trend_months       = available_months[-12:]
+    trend_months       = available_months_all[-12:]
     trend_labels       = []
     trend_inc_budgeted = []
     trend_inc_actual   = []
@@ -158,6 +158,7 @@ def transactions_page(
     month: Optional[str] = None,
     account_id: Optional[str] = None,
     category_id: Optional[str] = None,
+    budget_period: Optional[str] = None,
     show_excluded: Optional[str] = None,
     keyword: Optional[str] = None,
     date_from: Optional[str] = None,
@@ -169,6 +170,25 @@ def transactions_page(
     categories       = db.query(Category).order_by(Category.name).all()
 
     query = db.query(Transaction)
+
+    if budget_period:
+        try:
+            budget_year, budget_month_num = parse_month(budget_period)
+            date(budget_year, budget_month_num, 1)
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=400,
+                detail="budget_period must be YYYY-MM",
+            ) from None
+
+        effective_date = case(
+            (Transaction.budget_month.is_not(None), Transaction.budget_month),
+            else_=Transaction.date,
+        )
+        query = query.filter(
+            extract("year", effective_date) == budget_year,
+            extract("month", effective_date) == budget_month_num,
+        )
 
     if month:
         year, mo = parse_month(month)
@@ -219,6 +239,7 @@ def transactions_page(
         "selected_month":    month or "",
         "selected_account":  account_id or "",
         "selected_category": category_id or "",
+        "selected_budget_period": budget_period or "",
         "selected_keyword":  keyword or "",
         "selected_date_from": date_from or "",
         "selected_date_to":  date_to or "",
@@ -237,12 +258,32 @@ def download_transactions(
     month: Optional[str] = None,
     account_id: Optional[str] = None,
     category_id: Optional[str] = None,
+    budget_period: Optional[str] = None,
     keyword: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
 ):
     """Download the current filtered transaction view as a CSV file."""
     query = db.query(Transaction).filter(Transaction.excluded == False)  # noqa: E712
+
+    if budget_period:
+        try:
+            budget_year, budget_month_num = parse_month(budget_period)
+            date(budget_year, budget_month_num, 1)
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=400,
+                detail="budget_period must be YYYY-MM",
+            ) from None
+
+        effective_date = case(
+            (Transaction.budget_month.is_not(None), Transaction.budget_month),
+            else_=Transaction.date,
+        )
+        query = query.filter(
+            extract("year", effective_date) == budget_year,
+            extract("month", effective_date) == budget_month_num,
+        )
 
     if month:
         year, mo = parse_month(month)

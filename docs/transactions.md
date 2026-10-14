@@ -12,10 +12,11 @@ Click the **Filters** panel to filter by:
 - **Date range** — start and end date for custom ranges
 - **Account** — filter by source bank
 - **Category** — filter by category (includes split children)
+- **Budget month** — when opened from a category on the Budget page, limits results to that budget month and honors budget month overrides
 - **Description** — text search
 - **Show excluded** — toggle to include excluded transactions
 
-The filter badge on the panel header turns blue when any filter is active.
+The filter badge on the panel header turns blue when any filter is active. A budget-month filter is preserved when changing the other filters; the regular Month and Date range filters continue to use each transaction's actual date.
 
 ---
 

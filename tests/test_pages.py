@@ -16,10 +16,11 @@ Routes covered:
   GET /savings       savings page
 """
 
-import pytest
+import json
 from datetime import date
-from models import Account, Category, Transaction, SavingsTransaction, SavingsAllocation
 
+import pytest
+from models import Account, Category, SavingsAllocation, SavingsTransaction, Transaction
 
 # ── Page seed fixture ─────────────────────────────────────────────────────────
 
@@ -98,6 +99,37 @@ class TestDashboardPage:
         resp = client.get(f"/?month={today.year}-{today.month:02d}")
         assert resp.status_code == 200
 
+    def test_dashboard_trend_chart_is_chronological(self, client, db, page_seed):
+        """The most recent month appears at the right of the trend chart."""
+        year = date.today().year + 2
+        first_month = date(year, 1, 1)
+        second_month = date(year, 2, 1)
+        db.add_all([
+            Transaction(
+                date=first_month,
+                amount=-10,
+                description="JANUARY TRANSACTION",
+                category_id=page_seed["groceries"].id,
+            ),
+            Transaction(
+                date=second_month,
+                amount=-10,
+                description="FEBRUARY TRANSACTION",
+                category_id=page_seed["groceries"].id,
+            ),
+        ])
+        db.commit()
+
+        response = client.get("/")
+        chart_labels = json.loads(
+            response.text.split("const trendLabels      = ", 1)[1].split(";", 1)[0]
+        )
+
+        assert chart_labels[-2:] == [
+            first_month.strftime("%b %y"),
+            second_month.strftime("%b %y"),
+        ]
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECTION 2: Transactions page
@@ -142,6 +174,49 @@ class TestTransactionsPage:
         """Transactions page accepts category_id=none for uncategorized filter."""
         resp = client.get("/transactions?category_id=none")
         assert resp.status_code == 200
+
+    def test_budget_period_filter_uses_budget_month_overrides(self, client, db, page_seed):
+        """Budget-period filtering follows overrides without changing actual-date filtering."""
+        target_month = date(2025, 3, 1)
+        category_id = page_seed["groceries"].id
+        db.add_all([
+            Transaction(
+                date=date(2025, 3, 10),
+                amount=-10,
+                description="IN BUDGET MONTH",
+                category_id=category_id,
+            ),
+            Transaction(
+                date=date(2025, 4, 10),
+                budget_month=target_month,
+                amount=-20,
+                description="OVERRIDDEN INTO BUDGET MONTH",
+                category_id=category_id,
+            ),
+            Transaction(
+                date=date(2025, 4, 11),
+                amount=-30,
+                description="OUTSIDE BUDGET MONTH",
+                category_id=category_id,
+            ),
+        ])
+        db.commit()
+
+        response = client.get(
+            f"/transactions?category_id={category_id}&budget_period=2025-03"
+        )
+
+        assert response.status_code == 200
+        assert "IN BUDGET MONTH" in response.text
+        assert "OVERRIDDEN INTO BUDGET MONTH" in response.text
+        assert "OUTSIDE BUDGET MONTH" not in response.text
+        assert 'name="budget_period" value="2025-03"' in response.text
+
+    def test_budget_period_filter_rejects_invalid_value(self, client, db, page_seed):
+        """Invalid budget-period values return a client error."""
+        response = client.get("/transactions?budget_period=2025-13")
+
+        assert response.status_code == 400
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -191,6 +266,28 @@ class TestBudgetPages:
         today = date.today()
         resp = client.get(f"/budget?month={today.year}-{today.month:02d}")
         assert resp.status_code == 200
+
+    def test_budget_categories_link_to_filtered_transactions(self, client, db, page_seed):
+        """Expense, savings, income, and unassigned names link to their transactions."""
+        today = date.today()
+        month = f"{today.year}-{today.month:02d}"
+
+        response = client.get(f"/budget?month={month}")
+
+        assert response.status_code == 200
+        assert (
+            f"/transactions?category_id={page_seed['groceries'].id}"
+            f"&amp;budget_period={month}"
+        ) in response.text
+        assert (
+            f"/transactions?category_id={page_seed['savings'].id}"
+            f"&amp;budget_period={month}"
+        ) in response.text
+        assert (
+            f"/transactions?category_id={page_seed['income'].id}"
+            f"&amp;budget_period={month}"
+        ) in response.text
+        assert f"/transactions?category_id=none&amp;budget_period={month}" in response.text
 
     def test_budget_manage_returns_200(self, client, db, page_seed):
         """Budget management page renders without error."""

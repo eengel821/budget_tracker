@@ -33,6 +33,8 @@ Each category with a budget set is listed with:
 | Remaining | Budget minus spent. Positive = under budget, negative = over |
 | Progress | Visual bar and percentage |
 
+Click a category name in the expense, savings, or income section to open its transactions. The list is filtered to the selected budget month, including transactions attributed to that month by a budget month override. You can change transaction categories from that view.
+
 ### Progress bar colors
 
 | Color | Threshold | Meaning |
